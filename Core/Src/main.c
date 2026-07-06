@@ -99,6 +99,9 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Enable TIM3 DMA request on CC4 match — triggers DMA Ch3 to read OV7670_DATA_PORT->IDR */
+  __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_CC4);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */

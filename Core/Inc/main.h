@@ -112,6 +112,8 @@ void Error_Handler(void);
 #define LCD_BL_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+#define OV7670_DATA_PORT GPIOA
+#define OV7670_DATA_ADDR   (&(OV7670_DATA_PORT->IDR))
 
 /* USER CODE END Private defines */
 
