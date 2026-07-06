@@ -79,6 +79,14 @@ void Error_Handler(void);
 #define OV7670_SCL_GPIO_Port GPIOB
 #define OV7670_SDA_Pin GPIO_PIN_11
 #define OV7670_SDA_GPIO_Port GPIOB
+#define LCD_SPI_CS_Pin GPIO_PIN_12
+#define LCD_SPI_CS_GPIO_Port GPIOB
+#define LCD_SPI_CLK_Pin GPIO_PIN_13
+#define LCD_SPI_CLK_GPIO_Port GPIOB
+#define LCD_RESET_Pin GPIO_PIN_14
+#define LCD_RESET_GPIO_Port GPIOB
+#define LCD_SPI_MOSI_Pin GPIO_PIN_15
+#define LCD_SPI_MOSI_GPIO_Port GPIOB
 #define OV7670_FIFO_OE_Pin GPIO_PIN_8
 #define OV7670_FIFO_OE_GPIO_Port GPIOA
 #define OV7670_VSYNC_Pin GPIO_PIN_11
@@ -95,6 +103,10 @@ void Error_Handler(void);
 #define OV7670_FIFO_RRST_GPIO_Port GPIOB
 #define OV7670_FIFO_WRST_Pin GPIO_PIN_7
 #define OV7670_FIFO_WRST_GPIO_Port GPIOB
+#define LCD_DC_Pin GPIO_PIN_8
+#define LCD_DC_GPIO_Port GPIOB
+#define LCD_BL_Pin GPIO_PIN_9
+#define LCD_BL_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
