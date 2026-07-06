@@ -49,6 +49,8 @@ extern "C" {
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -91,6 +93,7 @@ void Error_Handler(void);
 #define OV7670_FIFO_OE_GPIO_Port GPIOA
 #define OV7670_VSYNC_Pin GPIO_PIN_11
 #define OV7670_VSYNC_GPIO_Port GPIOA
+#define OV7670_VSYNC_EXTI_IRQn EXTI15_10_IRQn
 #define OV7670_HREF_Pin GPIO_PIN_12
 #define OV7670_HREF_GPIO_Port GPIOA
 #define OV7670_PWDN_Pin GPIO_PIN_3
