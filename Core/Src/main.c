@@ -46,6 +46,8 @@ DMA_HandleTypeDef hdma_spi2_tx;
 TIM_HandleTypeDef htim3;
 DMA_HandleTypeDef hdma_tim3_ch4_up;
 
+UART_HandleTypeDef huart1;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -56,6 +58,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -97,6 +100,7 @@ int main(void)
   MX_DMA_Init();
   MX_TIM3_Init();
   MX_SPI2_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* Enable TIM3 DMA request on CC4 match — triggers DMA Ch3 to read OV7670_DATA_PORT->IDR */
@@ -252,6 +256,39 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -288,14 +325,15 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, OV7670_STROBE_Pin|OV7670_PWDN_Pin|OV7670_FIFO_WR_EN_Pin|LCD_DC_Pin
+                          |LCD_BL_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, OV7670_SCL_Pin|LCD_SPI_CS_Pin|LCD_RESET_Pin|OV7670_RESET_Pin
                           |OV7670_FIFO_RRST_Pin|OV7670_FIFO_WRST_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(OV7670_FIFO_OE_GPIO_Port, OV7670_FIFO_OE_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, OV7670_PWDN_Pin|OV7670_FIFO_WR_EN_Pin|LCD_DC_Pin|LCD_BL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : OV7670_D0_Pin OV7670_D1_Pin OV7670_D2_Pin OV7670_D3_Pin
                            OV7670_D4_Pin OV7670_D5_Pin OV7670_D6_Pin OV7670_D7_Pin
@@ -306,6 +344,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : OV7670_STROBE_Pin LCD_SPI_CS_Pin LCD_RESET_Pin OV7670_PWDN_Pin
+                           OV7670_RESET_Pin OV7670_FIFO_WR_EN_Pin OV7670_FIFO_RRST_Pin OV7670_FIFO_WRST_Pin
+                           LCD_DC_Pin LCD_BL_Pin */
+  GPIO_InitStruct.Pin = OV7670_STROBE_Pin|LCD_SPI_CS_Pin|LCD_RESET_Pin|OV7670_PWDN_Pin
+                          |OV7670_RESET_Pin|OV7670_FIFO_WR_EN_Pin|OV7670_FIFO_RRST_Pin|OV7670_FIFO_WRST_Pin
+                          |LCD_DC_Pin|LCD_BL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : OV7670_SCL_Pin */
   GPIO_InitStruct.Pin = OV7670_SCL_Pin;
@@ -319,17 +368,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(OV7670_SDA_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LCD_SPI_CS_Pin LCD_RESET_Pin OV7670_PWDN_Pin OV7670_RESET_Pin
-                           OV7670_FIFO_WR_EN_Pin OV7670_FIFO_RRST_Pin OV7670_FIFO_WRST_Pin LCD_DC_Pin
-                           LCD_BL_Pin */
-  GPIO_InitStruct.Pin = LCD_SPI_CS_Pin|LCD_RESET_Pin|OV7670_PWDN_Pin|OV7670_RESET_Pin
-                          |OV7670_FIFO_WR_EN_Pin|OV7670_FIFO_RRST_Pin|OV7670_FIFO_WRST_Pin|LCD_DC_Pin
-                          |LCD_BL_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : OV7670_FIFO_OE_Pin */
   GPIO_InitStruct.Pin = OV7670_FIFO_OE_Pin;
