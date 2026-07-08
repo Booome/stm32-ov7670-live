@@ -325,7 +325,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, OV7670_STROBE_Pin|OV7670_PWDN_Pin|OV7670_FIFO_WR_EN_Pin|LCD_DC_Pin
+  HAL_GPIO_WritePin(GPIOB, OV7670_STROBE_Pin|OV7670_PWDN_Pin|OV7670_FIFO_WR_Pin|LCD_DC_Pin
                           |LCD_BL_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -346,10 +346,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : OV7670_STROBE_Pin LCD_SPI_CS_Pin LCD_RESET_Pin OV7670_PWDN_Pin
-                           OV7670_RESET_Pin OV7670_FIFO_WR_EN_Pin OV7670_FIFO_RRST_Pin OV7670_FIFO_WRST_Pin
+                           OV7670_RESET_Pin OV7670_FIFO_WR_Pin OV7670_FIFO_RRST_Pin OV7670_FIFO_WRST_Pin
                            LCD_DC_Pin LCD_BL_Pin */
   GPIO_InitStruct.Pin = OV7670_STROBE_Pin|LCD_SPI_CS_Pin|LCD_RESET_Pin|OV7670_PWDN_Pin
-                          |OV7670_RESET_Pin|OV7670_FIFO_WR_EN_Pin|OV7670_FIFO_RRST_Pin|OV7670_FIFO_WRST_Pin
+                          |OV7670_RESET_Pin|OV7670_FIFO_WR_Pin|OV7670_FIFO_RRST_Pin|OV7670_FIFO_WRST_Pin
                           |LCD_DC_Pin|LCD_BL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
