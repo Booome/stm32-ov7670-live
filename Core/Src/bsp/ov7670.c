@@ -197,12 +197,12 @@ static const struct
   { OV7670_REG_CLKRC,             0x00u }, /* CLKRC: no prescaler              */
 
   /* ---- Output format ---- */
-  { OV7670_REG_TSLB,              0x04u }, /* TSLB: OV output timing           */
-  { OV7670_REG_COM7,              0x14u }, /* COM7: QVGA + RGB565             */
-  { OV7670_REG_COM3,              0x0Cu }, /* COM3: DCW + down-sampling       */
-  { OV7670_REG_COM14,             0x18u }, /* COM14: DCW PCLK + manual scale  */
-  { OV7670_REG_COM15,             0xD0u }, /* COM15: full range + RGB565      */
-  { OV7670_REG_RGB444,            0x00u }, /* RGB444: disable                 */
+  { OV7670_REG_TSLB,   0x04u }, /* TSLB: OV output timing           */
+  { OV7670_REG_COM7,   0x14u }, /* COM7: QVGA + RGB565             */
+  { OV7670_REG_COM3,   0x0Cu }, /* COM3: DCW + down-sampling       */
+  { OV7670_REG_COM14,  0x18u }, /* COM14: DCW PCLK + manual scale  */
+  { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565      */
+  { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                 */
 
   /* ---- VGA window (sensor readout area, OmniVision default) ---- */
   { OV7670_REG_HSTART, 0x13u },
@@ -213,10 +213,10 @@ static const struct
   { OV7670_REG_VREF,   0x0Au },
 
   /* ---- Scaling (160x128 via DCW + Digital Zoom) ---- */
-  { OV7670_REG_SCALING_DCWCTR,    0x11u }, /* DCWCTR: V/H by2                */
-  { OV7670_REG_SCALING_XSC,       0x40u }, /* XSC: horizontal 0.5x (320->160)*/
-  { OV7670_REG_SCALING_YSC,       0x3Cu }, /* YSC: vertical 0.533x (240->128)*/
-  { OV7670_REG_SCALING_PCLK_DIV,  0xF1u }, /* PCLK_DIV: /2 (match DCW by2)  */
+  { OV7670_REG_SCALING_DCWCTR,     0x11u }, /* DCWCTR: V/H by2                */
+  { OV7670_REG_SCALING_XSC,        0x40u }, /* XSC: horizontal 0.5x (320->160)*/
+  { OV7670_REG_SCALING_YSC,        0x3Cu }, /* YSC: vertical 0.533x (240->128)*/
+  { OV7670_REG_SCALING_PCLK_DIV,   0xF1u }, /* PCLK_DIV: /2 (match DCW by2)  */
   { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                      */
 
   /* ---- Gamma curve (0x7A-0x89) ---- */
@@ -238,7 +238,7 @@ static const struct
   { OV7670_REG_GAM15, 0xE8u },
 
   /* ---- COM8: disable AGC/AEC/AWB for parameter setup ---- */
-  { OV7670_REG_COM8,              0xE0u }, /* FASTAEC+AECSTEP+BFILT only     */
+  { OV7670_REG_COM8, 0xE0u }, /* FASTAEC+AECSTEP+BFILT only     */
 
   /* ---- AGC/AEC parameters ---- */
   { OV7670_REG_GAIN,     0x00u },
@@ -260,7 +260,7 @@ static const struct
   { OV7670_REG_HAECC7,   0x94u },
 
   /* ---- COM8: re-enable AGC+AEC ---- */
-  { OV7670_REG_COM8,              0xE5u }, /* FASTAEC+AECSTEP+BFILT+AGC+AEC */
+  { OV7670_REG_COM8, 0xE5u }, /* FASTAEC+AECSTEP+BFILT+AGC+AEC */
 
   /* ---- Reserved / magic registers ---- */
   { OV7670_REG_COM5,     0x61u },
@@ -317,7 +317,7 @@ static const struct
   { OV7670_REG_RED,       0x60u },
 
   /* ---- COM8: re-enable AWB (all auto features on) ---- */
-  { OV7670_REG_COM8,              0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
+  { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
 
   /* ---- Color matrix (RGB565 specific) ---- */
   { OV7670_REG_MTX1, 0xB3u },
