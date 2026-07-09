@@ -20,9 +20,11 @@ extern DMA_HandleTypeDef hdma_spi2_tx;
 
 /* VSYNC delay: 2ms */
 #define PIPELINE_VSYNC_DELAY_US  2000u
+_Static_assert(PIPELINE_VSYNC_DELAY_US > 1110u,
+              "VSYNC delay must exceed OV7670 back porch (1.11ms @ 12MHz)");
 
 /* Module state */
-static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_IDLE;
+static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_DISABLED;
 static volatile uint32_t s_bytes_sent;
 static volatile bool s_spi_dma_busy;
 static DWT_DelayHandle s_vsync_delay;
