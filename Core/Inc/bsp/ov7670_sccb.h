@@ -14,6 +14,42 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "main.h"
+#include "stm32f1xx_hal.h"
+
+/* ---- SCCB pin control (static inline, OD output) ---- */
+
+/** @brief Release SCL (high via pull-up) */
+static inline void SCCB_SCL_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Drive SCL low */
+static inline void SCCB_SCL_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Release SDA (high via pull-up) */
+static inline void SCCB_SDA_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Drive SDA low */
+static inline void SCCB_SDA_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Read SDA pin state */
+static inline GPIO_PinState SCCB_SDA_Read(void)
+{
+  return HAL_GPIO_ReadPin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin);
+}
+
+/* ---- Public API ---- */
 
 /** @brief  Initialize SCCB bus (set pins idle high) */
 void    SCCB_Init(void);

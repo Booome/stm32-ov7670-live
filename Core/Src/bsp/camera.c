@@ -4,6 +4,7 @@
   */
 #include "camera.h"
 #include "st7735.h"
+#include "ov7670.h"
 #include "dwt_delay.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
@@ -42,11 +43,11 @@ static void camera_dma_cplt_cb(DMA_HandleTypeDef *hdma);
 static void read_start(void)
 {
   /* Reset FIFO read pointer */
-  HAL_GPIO_WritePin(OV7670_FIFO_RRST_GPIO_Port, OV7670_FIFO_RRST_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(OV7670_FIFO_RRST_GPIO_Port, OV7670_FIFO_RRST_Pin, GPIO_PIN_SET);
+  OV7670_FIFO_RRST_Low();
+  OV7670_FIFO_RRST_High();
 
   /* Enable FIFO output */
-  HAL_GPIO_WritePin(OV7670_FIFO_OE_GPIO_Port, OV7670_FIFO_OE_Pin, GPIO_PIN_RESET);
+  OV7670_FIFO_OE_Low();
 
   /* Set LCD address window (leaves CS low, DC high for pixel stream) */
   LCD_SetAddrWindow(0u, 0u, CAMERA_WIDTH - 1u, CAMERA_HEIGHT - 1u);
@@ -91,9 +92,9 @@ static void frame_done(void)
   HAL_DMA_Abort(&hdma_tim3_ch4_up);
 
   /* Disable FIFO output, raise CS, stop FIFO write */
-  HAL_GPIO_WritePin(OV7670_FIFO_OE_GPIO_Port, OV7670_FIFO_OE_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LCD_SPI_CS_GPIO_Port, LCD_SPI_CS_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(OV7670_FIFO_WR_GPIO_Port, OV7670_FIFO_WR_Pin, GPIO_PIN_RESET);
+  OV7670_FIFO_OE_High();
+  LCD_CS_High();
+  OV7670_FIFO_WR_Low();
 
   s_state = CAMERA_STATE_IDLE;
 }
@@ -135,11 +136,11 @@ void Camera_OnVsync(void)
   s_state = CAMERA_STATE_FRAME_START;
 
   /* Reset FIFO write pointer */
-  HAL_GPIO_WritePin(OV7670_FIFO_WRST_GPIO_Port, OV7670_FIFO_WRST_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(OV7670_FIFO_WRST_GPIO_Port, OV7670_FIFO_WRST_Pin, GPIO_PIN_SET);
+  OV7670_FIFO_WRST_Low();
+  OV7670_FIFO_WRST_High();
 
   /* Enable FIFO write (NAND gate with HREF) */
-  HAL_GPIO_WritePin(OV7670_FIFO_WR_GPIO_Port, OV7670_FIFO_WR_Pin, GPIO_PIN_SET);
+  OV7670_FIFO_WR_High();
 
   /* Start non-blocking 2ms delay */
   DWT_DelayStart(&s_vsync_delay, CAMERA_VSYNC_DELAY_US);

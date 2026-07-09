@@ -4,7 +4,6 @@
   */
 #include "ov7670_sccb.h"
 #include "dwt_delay.h"
-#include "main.h"
 #include "stm32f1xx_hal.h"
 
 /* SCCB device address: 0x42 = write, 0x43 = read */
@@ -38,12 +37,12 @@ static uint8_t sccb_read_byte(bool ack);
   */
 static void sccb_start(void)
 {
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+  SCCB_SDA_High();
+  SCCB_SCL_High();
   DWT_DelayCycles(SCCB_T_HIGH_CYC);
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_RESET);
+  SCCB_SDA_Low();
   DWT_DelayCycles(SCCB_T_HIGH_CYC);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
+  SCCB_SCL_Low();
 }
 
 /**
@@ -51,12 +50,12 @@ static void sccb_start(void)
   */
 static void sccb_stop(void)
 {
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
+  SCCB_SDA_Low();
+  SCCB_SCL_Low();
   DWT_DelayCycles(SCCB_T_LOW_CYC);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+  SCCB_SCL_High();
   DWT_DelayCycles(SCCB_T_HIGH_CYC);
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+  SCCB_SDA_High();
   DWT_DelayCycles(SCCB_T_HIGH_CYC);
 }
 
@@ -72,26 +71,26 @@ static bool sccb_write_byte(uint8_t byte)
   {
     if ((byte & 0x80u) != 0u)
     {
-      HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+      SCCB_SDA_High();
     }
     else
     {
-      HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_RESET);
+      SCCB_SDA_Low();
     }
     DWT_DelayCycles(SCCB_T_LOW_CYC);
-    HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+    SCCB_SCL_High();
     DWT_DelayCycles(SCCB_T_HIGH_CYC);
-    HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
+    SCCB_SCL_Low();
     byte <<= 1;
   }
 
   /* ACK phase: release SDA, clock, read ACK */
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+  SCCB_SDA_High();
   DWT_DelayCycles(SCCB_T_LOW_CYC);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+  SCCB_SCL_High();
   DWT_DelayCycles(SCCB_T_HIGH_CYC);
-  GPIO_PinState ack = HAL_GPIO_ReadPin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
+  GPIO_PinState ack = SCCB_SDA_Read();
+  SCCB_SCL_Low();
   return (ack == GPIO_PIN_RESET);
 }
 
@@ -106,39 +105,39 @@ static uint8_t sccb_read_byte(bool ack)
 
   for (uint8_t i = 0u; i < 8u; i++)
   {
-    HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+    SCCB_SDA_High();
     DWT_DelayCycles(SCCB_T_LOW_CYC);
-    HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+    SCCB_SCL_High();
     DWT_DelayCycles(SCCB_T_HIGH_CYC);
     byte <<= 1;
-    if (HAL_GPIO_ReadPin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin) == GPIO_PIN_SET)
+    if (SCCB_SDA_Read() == GPIO_PIN_SET)
     {
       byte |= 0x01u;
     }
-    HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
+    SCCB_SCL_Low();
   }
 
   /* ACK/NACK phase */
   if (ack)
   {
-    HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_RESET);
+    SCCB_SDA_Low();
   }
   else
   {
-    HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+    SCCB_SDA_High();
   }
   DWT_DelayCycles(SCCB_T_LOW_CYC);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
+  SCCB_SCL_High();
   DWT_DelayCycles(SCCB_T_HIGH_CYC);
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+  SCCB_SCL_Low();
+  SCCB_SDA_High();
   return byte;
 }
 
 void SCCB_Init(void)
 {
-  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET);
+  SCCB_SCL_High();
+  SCCB_SDA_High();
 }
 
 bool SCCB_WriteReg(uint8_t reg_addr, uint8_t data)

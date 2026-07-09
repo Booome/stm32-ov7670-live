@@ -5,7 +5,6 @@
 #include "ov7670.h"
 #include "ov7670_sccb.h"
 #include "dwt_delay.h"
-#include "main.h"
 #include "stm32f1xx_hal.h"
 
 /* OV7670 register addresses */
@@ -65,13 +64,13 @@ static const struct
 bool OV7670_Init(void)
 {
   /* Hardware power-up sequence */
-  HAL_GPIO_WritePin(OV7670_PWDN_GPIO_Port, OV7670_PWDN_Pin, GPIO_PIN_SET);
+  OV7670_PWDN_High();
   DWT_DelayMs(1u);
-  HAL_GPIO_WritePin(OV7670_PWDN_GPIO_Port, OV7670_PWDN_Pin, GPIO_PIN_RESET);
+  OV7670_PWDN_Low();
   DWT_DelayMs(1u);
-  HAL_GPIO_WritePin(OV7670_RESET_GPIO_Port, OV7670_RESET_Pin, GPIO_PIN_RESET);
+  OV7670_RESET_Low();
   DWT_DelayMs(1u);
-  HAL_GPIO_WritePin(OV7670_RESET_GPIO_Port, OV7670_RESET_Pin, GPIO_PIN_SET);
+  OV7670_RESET_High();
   DWT_DelayMs(1u);
 
   /* Initialize SCCB bus */
