@@ -22,7 +22,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "dwt_delay.h"
-#include "ov7670_sccb.h"
 #include "ov7670.h"
 #include "st7735.h"
 #include "pipeline.h"
@@ -116,9 +115,6 @@ int main(void)
   /* BSP initialization (order matters: DWT -> OV7670 -> LCD -> Pipeline) */
   DWT_Init();
   debug_printf("DWT init OK\n");
-
-  SCCB_Init();
-  debug_printf("SCCB init OK\n");
 
   if (OV7670_Init())
   {
