@@ -26,6 +26,7 @@ static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_IDLE;
 static volatile uint32_t s_bytes_sent;
 static volatile bool s_spi_dma_busy;
 static DWT_DelayHandle s_vsync_delay;
+static uint32_t s_frame_count;  /* Debug: total frames captured */
 
 /* Frame buffer: 640 bytes, 2 x 320B ping-pong */
 static uint8_t PipelineBuffer[PIPELINE_BUFFER_SIZE];
@@ -104,6 +105,7 @@ void Pipeline_Init(void)
   s_state = PIPELINE_STATE_IDLE;
   s_bytes_sent = 0u;
   s_spi_dma_busy = false;
+  s_frame_count = 0u;
 }
 
 Pipeline_StateTypeDef Pipeline_GetState(void)
@@ -122,6 +124,7 @@ void Pipeline_Poll(void)
   }
   else if (s_state == PIPELINE_STATE_FRAME_DONE)
   {
+    s_frame_count++;
     frame_done();
   }
 }

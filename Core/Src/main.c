@@ -26,6 +26,7 @@
 #include "ov7670.h"
 #include "st7735.h"
 #include "pipeline.h"
+#include "debug.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -107,19 +108,37 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  debug_printf("\n\n=== STM32 OV7670 Live ===\n");
+
   /* Enable TIM3 CC4 DMA request (triggers Camera DMA per RCK cycle) */
   Pipeline_EnableTimDma();
 
   /* BSP initialization (order matters: DWT -> OV7670 -> LCD -> Pipeline) */
   DWT_Init();
+  debug_printf("DWT init OK\n");
+
   SCCB_Init();
-  OV7670_Init();
+  debug_printf("SCCB init OK\n");
+
+  if (OV7670_Init())
+  {
+    debug_printf("OV7670 init OK\n");
+  }
+  else
+  {
+    debug_printf("OV7670 init FAILED (SCCB NACK)\n");
+  }
+
   LCD_Init();
+  debug_printf("LCD init OK\n");
+
   Pipeline_Init();
+  debug_printf("Pipeline init OK, enabling VSYNC...\n");
 
   /* Enable VSYNC interrupt (PA11 -> EXTI11, last step before main loop) */
   Pipeline_ClearVsyncPending();
   Pipeline_EnableVsyncIrq();
+  debug_printf("VSYNC enabled, entering main loop\n");
 
   /* USER CODE END 2 */
 
