@@ -47,6 +47,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/bsp/dwt_delay.c
     Core/Src/bsp/ov7670_sccb.c
     Core/Src/bsp/ov7670.c
+    Core/Src/bsp/st7735.c
 )
 
 # Add include paths
