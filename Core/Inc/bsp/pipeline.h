@@ -40,7 +40,7 @@ static inline void Pipeline_ClearVsyncPending(void)
 /** @brief  Enable EXTI15_10 NVIC IRQ (VSYNC on PA11 -> EXTI11) */
 static inline void Pipeline_EnableVsyncIrq(void)
 {
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  HAL_NVIC_EnableIRQ(OV7670_VSYNC_EXTI_IRQn);
 }
 
 /* ---- Public API ---- */
@@ -48,7 +48,8 @@ static inline void Pipeline_EnableVsyncIrq(void)
 /** @brief Pipeline states */
 typedef enum
 {
-  PIPELINE_STATE_IDLE = 0,        /**< Waiting for VSYNC              */
+  PIPELINE_STATE_DISABLED = 0,    /**< Not yet initialized            */
+  PIPELINE_STATE_IDLE,            /**< Waiting for VSYNC              */
   PIPELINE_STATE_FRAME_START,     /**< VSYNC received, waiting 2ms    */
   PIPELINE_STATE_FRAME_CAPTURING, /**< DMA pipeline active            */
   PIPELINE_STATE_FRAME_DONE       /**< Frame complete, cleaning up     */
