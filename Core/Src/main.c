@@ -123,6 +123,7 @@ int main(void)
   else
   {
     debug_printf("OV7670 init FAILED (SCCB NACK)\n");
+    Error_Handler();
   }
 
   LCD_Init();
