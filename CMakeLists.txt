@@ -48,7 +48,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/bsp/ov7670_sccb.c
     Core/Src/bsp/ov7670.c
     Core/Src/bsp/st7735.c
-    Core/Src/bsp/camera.c
+    Core/Src/bsp/pipeline.c
 )
 
 # Add include paths

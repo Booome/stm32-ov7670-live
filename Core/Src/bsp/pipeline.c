@@ -1,8 +1,8 @@
 /**
-  * @file    camera.c
-  * @brief   Frame capture state machine and DMA pipeline implementation
+  * @file    pipeline.c
+  * @brief   Dual-DMA frame capture pipeline implementation
   */
-#include "camera.h"
+#include "pipeline.h"
 #include "st7735.h"
 #include "ov7670.h"
 #include "dwt_delay.h"
@@ -18,21 +18,21 @@ extern DMA_HandleTypeDef hdma_spi2_tx;
 /* GPIOA IDR address for Camera DMA source (defined in main.h) */
 /* OV7670_DATA_ADDR = (&(OV7670_DATA_PORT->IDR)) */
 
-/* VSYNC delay: 2ms @ 72MHz = 144000 cycles */
-#define CAMERA_VSYNC_DELAY_US  2000u
+/* VSYNC delay: 2ms */
+#define PIPELINE_VSYNC_DELAY_US  2000u
 
 /* Module state */
-static volatile Camera_StateTypeDef s_state = CAMERA_STATE_IDLE;
+static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_IDLE;
 static volatile uint32_t s_bytes_sent;
 static volatile bool s_spi_dma_busy;
 static DWT_DelayHandle s_vsync_delay;
 
 /* Frame buffer: 640 bytes, 2 x 320B ping-pong */
-static uint8_t CameraBuffer[CAMERA_BUFFER_SIZE];
+static uint8_t PipelineBuffer[PIPELINE_BUFFER_SIZE];
 
 /* Forward declarations for DMA callback wrappers */
-static void camera_dma_half_cplt_cb(DMA_HandleTypeDef *hdma);
-static void camera_dma_cplt_cb(DMA_HandleTypeDef *hdma);
+static void pipeline_dma_half_cplt_cb(DMA_HandleTypeDef *hdma);
+static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma);
 
 /**
   * @brief   Start FIFO read pipeline
@@ -50,29 +50,29 @@ static void read_start(void)
   OV7670_FIFO_OE_Low();
 
   /* Set LCD address window (leaves CS low, DC high for pixel stream) */
-  LCD_SetAddrWindow(0u, 0u, CAMERA_WIDTH - 1u, CAMERA_HEIGHT - 1u);
+  LCD_SetAddrWindow(0u, 0u, PIPELINE_WIDTH - 1u, PIPELINE_HEIGHT - 1u);
 
   /* Reset byte counter */
   s_bytes_sent = 0u;
   s_spi_dma_busy = false;
 
   /*
-   * Start Camera DMA: GPIOA->IDR -> CameraBuffer[640], Circular
+   * Start Camera DMA: GPIOA->IDR -> PipelineBuffer[640], Circular
    *
    * Set callback function pointers before starting DMA.
    * TIM3 CC4 DMA request triggers one transfer per RCK cycle.
    */
-  hdma_tim3_ch4_up.XferHalfCpltCallback = camera_dma_half_cplt_cb;
-  hdma_tim3_ch4_up.XferCpltCallback = camera_dma_cplt_cb;
+  hdma_tim3_ch4_up.XferHalfCpltCallback = pipeline_dma_half_cplt_cb;
+  hdma_tim3_ch4_up.XferCpltCallback = pipeline_dma_cplt_cb;
   HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
                     (uint32_t)OV7670_DATA_ADDR,
-                    (uint32_t)CameraBuffer,
-                    CAMERA_BUFFER_SIZE);
+                    (uint32_t)PipelineBuffer,
+                    PIPELINE_BUFFER_SIZE);
 
   /* Start TIM3 CH4 PWM (RCK 1.44MHz) */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
-  s_state = CAMERA_STATE_FRAME_CAPTURING;
+  s_state = PIPELINE_STATE_FRAME_CAPTURING;
 }
 
 /**
@@ -96,44 +96,44 @@ static void frame_done(void)
   LCD_CS_High();
   OV7670_FIFO_WR_Low();
 
-  s_state = CAMERA_STATE_IDLE;
+  s_state = PIPELINE_STATE_IDLE;
 }
 
-void Camera_Init(void)
+void Pipeline_Init(void)
 {
-  s_state = CAMERA_STATE_IDLE;
+  s_state = PIPELINE_STATE_IDLE;
   s_bytes_sent = 0u;
   s_spi_dma_busy = false;
 }
 
-Camera_StateTypeDef Camera_GetState(void)
+Pipeline_StateTypeDef Pipeline_GetState(void)
 {
   return s_state;
 }
 
-void Camera_Poll(void)
+void Pipeline_Poll(void)
 {
-  if (s_state == CAMERA_STATE_FRAME_START)
+  if (s_state == PIPELINE_STATE_FRAME_START)
   {
     if (DWT_DelayExpired(&s_vsync_delay))
     {
       read_start();
     }
   }
-  else if (s_state == CAMERA_STATE_FRAME_DONE)
+  else if (s_state == PIPELINE_STATE_FRAME_DONE)
   {
     frame_done();
   }
 }
 
-void Camera_OnVsync(void)
+void Pipeline_OnVsync(void)
 {
-  if (s_state != CAMERA_STATE_IDLE)
+  if (s_state != PIPELINE_STATE_IDLE)
   {
     return;  /* Drop frame if busy */
   }
 
-  s_state = CAMERA_STATE_FRAME_START;
+  s_state = PIPELINE_STATE_FRAME_START;
 
   /* Reset FIFO write pointer */
   OV7670_FIFO_WRST_Low();
@@ -143,57 +143,57 @@ void Camera_OnVsync(void)
   OV7670_FIFO_WR_High();
 
   /* Start non-blocking 2ms delay */
-  DWT_DelayStart(&s_vsync_delay, CAMERA_VSYNC_DELAY_US);
+  DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
 }
 
-void Camera_OnDmaHalfCplt(void)
+void Pipeline_OnDmaHalfCplt(void)
 {
-  if (s_state != CAMERA_STATE_FRAME_CAPTURING)
+  if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
     return;
   }
 
   /* Buffer A [0..319] ready, send via SPI DMA */
   s_spi_dma_busy = true;
-  HAL_SPI_Transmit_DMA(&hspi2, CameraBuffer, CAMERA_HALF_SIZE);
-  s_bytes_sent += CAMERA_HALF_SIZE;
+  HAL_SPI_Transmit_DMA(&hspi2, PipelineBuffer, PIPELINE_HALF_SIZE);
+  s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
-void Camera_OnDmaCplt(void)
+void Pipeline_OnDmaCplt(void)
 {
-  if (s_state != CAMERA_STATE_FRAME_CAPTURING)
+  if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
     return;
   }
 
   /* Buffer B [320..639] ready, send via SPI DMA */
   s_spi_dma_busy = true;
-  HAL_SPI_Transmit_DMA(&hspi2, &CameraBuffer[CAMERA_HALF_SIZE], CAMERA_HALF_SIZE);
-  s_bytes_sent += CAMERA_HALF_SIZE;
+  HAL_SPI_Transmit_DMA(&hspi2, &PipelineBuffer[PIPELINE_HALF_SIZE], PIPELINE_HALF_SIZE);
+  s_bytes_sent += PIPELINE_HALF_SIZE;
 
-  if (s_bytes_sent >= CAMERA_FRAME_SIZE)
+  if (s_bytes_sent >= PIPELINE_FRAME_SIZE)
   {
-    s_state = CAMERA_STATE_FRAME_DONE;
+    s_state = PIPELINE_STATE_FRAME_DONE;
   }
 }
 
-void Camera_OnSpiDmaCplt(void)
+void Pipeline_OnSpiDmaCplt(void)
 {
   s_spi_dma_busy = false;
 }
 
 /* ---- DMA callback wrappers (function pointer signature) ---- */
 
-static void camera_dma_half_cplt_cb(DMA_HandleTypeDef *hdma)
+static void pipeline_dma_half_cplt_cb(DMA_HandleTypeDef *hdma)
 {
   (void)hdma;
-  Camera_OnDmaHalfCplt();
+  Pipeline_OnDmaHalfCplt();
 }
 
-static void camera_dma_cplt_cb(DMA_HandleTypeDef *hdma)
+static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma)
 {
   (void)hdma;
-  Camera_OnDmaCplt();
+  Pipeline_OnDmaCplt();
 }
 
 /* ---- HAL weak function overrides ---- */
@@ -202,7 +202,7 @@ static void camera_dma_cplt_cb(DMA_HandleTypeDef *hdma)
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   (void)hspi;
-  Camera_OnSpiDmaCplt();
+  Pipeline_OnSpiDmaCplt();
 }
 
 /** @brief  GPIO EXTI callback (VSYNC frame sync) */
@@ -212,5 +212,5 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     return;
   }
-  Camera_OnVsync();
+  Pipeline_OnVsync();
 }

@@ -31,7 +31,7 @@
 | ov7670_sccb.c/h | SCCB | GPIO-bitbang SCCB/I2C read/write |
 | ov7670.c/h | OV7670 | Register configuration |
 | st7735.c/h | LCD | ST7735 initialization and commands |
-| camera.c/h | Camera | Frame capture state machine and DMA callbacks |
+| pipeline.c/h | Pipeline | Dual-DMA frame capture pipeline (Camera -> FIFO -> LCD) |
 
 ### Adding BSP Sources
 
