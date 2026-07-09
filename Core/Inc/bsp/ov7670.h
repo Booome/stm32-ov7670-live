@@ -11,6 +11,84 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "main.h"
+#include "stm32f1xx_hal.h"
+
+/* ---- OV7670 pin control (static inline) ---- */
+
+/** @brief Power down camera (PWDN high) */
+static inline void OV7670_PWDN_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_PWDN_GPIO_Port, OV7670_PWDN_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Power on camera (PWDN low) */
+static inline void OV7670_PWDN_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_PWDN_GPIO_Port, OV7670_PWDN_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Assert camera reset (RESET low) */
+static inline void OV7670_RESET_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_RESET_GPIO_Port, OV7670_RESET_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Release camera reset (RESET high) */
+static inline void OV7670_RESET_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_RESET_GPIO_Port, OV7670_RESET_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Assert FIFO write pointer reset (WRST low) */
+static inline void OV7670_FIFO_WRST_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_WRST_GPIO_Port, OV7670_FIFO_WRST_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Release FIFO write pointer reset (WRST high) */
+static inline void OV7670_FIFO_WRST_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_WRST_GPIO_Port, OV7670_FIFO_WRST_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Assert FIFO read pointer reset (RRST low) */
+static inline void OV7670_FIFO_RRST_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_RRST_GPIO_Port, OV7670_FIFO_RRST_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Release FIFO read pointer reset (RRST high) */
+static inline void OV7670_FIFO_RRST_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_RRST_GPIO_Port, OV7670_FIFO_RRST_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Enable FIFO output (OE low) */
+static inline void OV7670_FIFO_OE_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_OE_GPIO_Port, OV7670_FIFO_OE_Pin, GPIO_PIN_RESET);
+}
+
+/** @brief Disable FIFO output (OE high) */
+static inline void OV7670_FIFO_OE_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_OE_GPIO_Port, OV7670_FIFO_OE_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Enable FIFO write (WR high, NAND gate active) */
+static inline void OV7670_FIFO_WR_High(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_WR_GPIO_Port, OV7670_FIFO_WR_Pin, GPIO_PIN_SET);
+}
+
+/** @brief Disable FIFO write (WR low) */
+static inline void OV7670_FIFO_WR_Low(void)
+{
+  HAL_GPIO_WritePin(OV7670_FIFO_WR_GPIO_Port, OV7670_FIFO_WR_Pin, GPIO_PIN_RESET);
+}
+
+/* ---- Public API ---- */
 
 /** @brief  Initialize OV7670: hardware reset + SCCB register config
   * @retval true   All registers written successfully

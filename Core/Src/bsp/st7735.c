@@ -4,7 +4,6 @@
   */
 #include "st7735.h"
 #include "dwt_delay.h"
-#include "main.h"
 #include "stm32f1xx_hal.h"
 
 /* SPI2 handle (defined in main.c) */
@@ -40,7 +39,7 @@ extern SPI_HandleTypeDef hspi2;
   */
 static void lcd_write_cmd(uint8_t cmd)
 {
-  HAL_GPIO_WritePin(LCD_DC_GPIO_Port, LCD_DC_Pin, GPIO_PIN_RESET);
+  LCD_DC_Low();
   HAL_SPI_Transmit(&hspi2, &cmd, 1u, HAL_MAX_DELAY);
 }
 
@@ -53,23 +52,23 @@ static void lcd_write_cmd(uint8_t cmd)
   */
 static void lcd_write_data(uint8_t *data, uint16_t len)
 {
-  HAL_GPIO_WritePin(LCD_DC_GPIO_Port, LCD_DC_Pin, GPIO_PIN_SET);
+  LCD_DC_High();
   HAL_SPI_Transmit(&hspi2, data, len, HAL_MAX_DELAY);
 }
 
 void LCD_Init(void)
 {
   /* Backlight on */
-  HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_SET);
+  LCD_BL_On();
 
   /* Hardware reset: low >= 10us, then high */
-  HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_RESET);
+  LCD_RESET_Low();
   DWT_DelayUs(10u);
-  HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_SET);
+  LCD_RESET_High();
   DWT_DelayMs(120u);
 
   /* CS low for entire init sequence */
-  HAL_GPIO_WritePin(LCD_SPI_CS_GPIO_Port, LCD_SPI_CS_Pin, GPIO_PIN_RESET);
+  LCD_CS_Low();
 
   lcd_write_cmd(ST7735_CMD_SLPOUT);
   DWT_DelayMs(120u);
@@ -87,7 +86,7 @@ void LCD_Init(void)
   lcd_write_cmd(ST7735_CMD_DISPON);
 
   /* CS high after init */
-  HAL_GPIO_WritePin(LCD_SPI_CS_GPIO_Port, LCD_SPI_CS_Pin, GPIO_PIN_SET);
+  LCD_CS_High();
 }
 
 void LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
@@ -108,7 +107,7 @@ void LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
   };
 
   /* CS low for entire address window + RAMWR sequence */
-  HAL_GPIO_WritePin(LCD_SPI_CS_GPIO_Port, LCD_SPI_CS_Pin, GPIO_PIN_RESET);
+  LCD_CS_Low();
 
   lcd_write_cmd(ST7735_CMD_CASET);
   lcd_write_data(caset, 4u);
@@ -119,5 +118,5 @@ void LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
   lcd_write_cmd(ST7735_CMD_RAMWR);
 
   /* DC=1 for pixel data, CS stays low for SPI DMA stream */
-  HAL_GPIO_WritePin(LCD_DC_GPIO_Port, LCD_DC_Pin, GPIO_PIN_SET);
+  LCD_DC_High();
 }
