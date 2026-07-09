@@ -287,8 +287,6 @@ static const struct
   { OV7670_REG_MAGIC_90, 0x00u },
   { OV7670_REG_MAGIC_91, 0x00u },
   { OV7670_REG_LCC1,     0x19u },
-  { OV7670_REG_MAGIC_96, 0x00u },
-  { OV7670_REG_MAGIC_9A, 0x00u },
   { OV7670_REG_MAGIC_B0, 0x84u },
   { OV7670_REG_MAGIC_B1, 0x0Cu },
   { OV7670_REG_MAGIC_B2, 0x0Eu },
