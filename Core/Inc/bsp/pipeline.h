@@ -17,6 +17,33 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "dwt_delay.h"
+#include "main.h"
+#include "stm32f1xx_hal.h"
+
+/* TIM3 handle (defined in main.c) */
+extern TIM_HandleTypeDef htim3;
+
+/* ---- Pipeline init helpers (static inline) ---- */
+
+/** @brief  Enable TIM3 CC4 DMA request (triggers Camera DMA per RCK cycle) */
+static inline void Pipeline_EnableTimDma(void)
+{
+  __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_CC4);
+}
+
+/** @brief  Clear pending VSYNC EXTI interrupt flag */
+static inline void Pipeline_ClearVsyncPending(void)
+{
+  __HAL_GPIO_EXTI_CLEAR_IT(OV7670_VSYNC_Pin);
+}
+
+/** @brief  Enable EXTI15_10 NVIC IRQ (VSYNC on PA11 -> EXTI11) */
+static inline void Pipeline_EnableVsyncIrq(void)
+{
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+}
+
+/* ---- Public API ---- */
 
 /** @brief Pipeline states */
 typedef enum
