@@ -67,16 +67,16 @@ static inline uint32_t dwt_us_to_ticks(uint32_t us)
 
 /**
   * @brief   Block until target_ticks cycles have elapsed
-  * @param   target_ticks  Number of cycles to wait
+  * @param   cycles  Number of CPU cycles to wait
   *
   *          CYCCNT wrap-around safe: unsigned subtraction yields the
   *          correct elapsed cycle count even when CYCCNT wraps from
   *          0xFFFFFFFF to 0x00000000 mid-delay.
   */
-static inline void dwt_wait_ticks(uint32_t target_ticks)
+void DWT_DelayCycles(uint32_t cycles)
 {
   uint32_t start = DWT->CYCCNT;
-  while ((DWT->CYCCNT - start) < target_ticks)
+  while ((DWT->CYCCNT - start) < cycles)
   {
   }
 }
@@ -101,19 +101,19 @@ void DWT_DelayUs(uint32_t us)
   if (us <= s_max_us)
   {
     /* Fast path: single wait, no loop */
-    dwt_wait_ticks(us * s_cycles_per_us);
+    DWT_DelayCycles(us * s_cycles_per_us);
     return;
   }
 
   /* Slow path: chunk to avoid multiplication overflow */
   while (us > s_max_us)
   {
-    dwt_wait_ticks(s_max_us_ticks);
+    DWT_DelayCycles(s_max_us_ticks);
     us -= s_max_us;
   }
   if (us > 0u)
   {
-    dwt_wait_ticks(us * s_cycles_per_us);
+    DWT_DelayCycles(us * s_cycles_per_us);
   }
 }
 
@@ -124,19 +124,19 @@ void DWT_DelayMs(uint32_t ms)
   if (ms <= s_max_ms)
   {
     /* Fast path: single wait, no loop */
-    dwt_wait_ticks(ms * s_ticks_per_ms);
+    DWT_DelayCycles(ms * s_ticks_per_ms);
     return;
   }
 
   /* Slow path: chunk to avoid multiplication overflow */
   while (ms > s_max_ms)
   {
-    dwt_wait_ticks(s_max_ms_ticks);
+    DWT_DelayCycles(s_max_ms_ticks);
     ms -= s_max_ms;
   }
   if (ms > 0u)
   {
-    dwt_wait_ticks(ms * s_ticks_per_ms);
+    DWT_DelayCycles(ms * s_ticks_per_ms);
   }
 }
 

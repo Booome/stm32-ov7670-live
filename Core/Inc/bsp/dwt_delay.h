@@ -29,6 +29,9 @@ void     DWT_Init(void);
 /** @brief  Get current cycle count */
 uint32_t DWT_GetCycles(void);
 
+/** @brief  Blocking delay in CPU cycles (cycle-accurate via CYCCNT) */
+void     DWT_DelayCycles(uint32_t cycles);
+
 /** @brief  Blocking delay in microseconds */
 void     DWT_DelayUs(uint32_t us);
 
