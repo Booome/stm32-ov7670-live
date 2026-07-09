@@ -25,7 +25,7 @@
 #include "ov7670_sccb.h"
 #include "ov7670.h"
 #include "st7735.h"
-#include "camera.h"
+#include "pipeline.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -115,7 +115,7 @@ int main(void)
   SCCB_Init();
   OV7670_Init();
   LCD_Init();
-  Camera_Init();
+  Pipeline_Init();
 
   /* Clear pending VSYNC interrupt before enabling */
   __HAL_GPIO_EXTI_CLEAR_IT(OV7670_VSYNC_Pin);
@@ -130,7 +130,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    Camera_Poll();
+    Pipeline_Poll();
   }
   /* USER CODE END 3 */
 }
