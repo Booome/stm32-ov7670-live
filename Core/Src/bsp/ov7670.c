@@ -49,7 +49,7 @@ static const struct
   { OV7670_REG_SCALING_DCWCTR,    0x11u }, /* Vertical/Horizontal by2          */
   { OV7670_REG_SCALING_XSC,       0x40u }, /* Horizontal 0.5x (320->160)       */
   { OV7670_REG_SCALING_YSC,       0x3Cu }, /* Vertical 0.533x (240->128)       */
-  { OV7670_REG_SCALING_PCLK_DIV,  0x01u }, /* PCLK divider = 2                 */
+  { OV7670_REG_SCALING_PCLK_DIV,  0xF1u }, /* PCLK divider = /2 (match DCW by2) */
   { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* Timing delay                    */
   { OV7670_REG_CLKRC,             0x00u }, /* No clock prescaler               */
   { OV7670_REG_RGB444,            0x00u }, /* Disable RGB444                   */
