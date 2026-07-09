@@ -18,8 +18,8 @@ extern DMA_HandleTypeDef hdma_spi2_tx;
 /* GPIOA IDR address for Camera DMA source (defined in main.h) */
 /* OV7670_DATA_ADDR = (&(OV7670_DATA_PORT->IDR)) */
 
-/* VSYNC delay: 2ms */
-#define PIPELINE_VSYNC_DELAY_US  2000u
+/* VSYNC delay: 1.3ms (back porch 1.11ms + 190us safety margin) */
+#define PIPELINE_VSYNC_DELAY_US  1300u
 _Static_assert(PIPELINE_VSYNC_DELAY_US > 1110u,
               "VSYNC delay must exceed OV7670 back porch (1.11ms @ 12MHz)");
 
