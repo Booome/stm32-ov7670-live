@@ -107,19 +107,19 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  /* Enable TIM3 DMA request on CC4 match - triggers DMA Ch3 to read OV7670_DATA_PORT->IDR */
-  __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_CC4);
+  /* Enable TIM3 CC4 DMA request (triggers Camera DMA per RCK cycle) */
+  Pipeline_EnableTimDma();
 
-  /* BSP initialization (order matters: DWT -> OV7670 -> LCD -> Camera) */
+  /* BSP initialization (order matters: DWT -> OV7670 -> LCD -> Pipeline) */
   DWT_Init();
   SCCB_Init();
   OV7670_Init();
   LCD_Init();
   Pipeline_Init();
 
-  /* Clear pending VSYNC interrupt before enabling */
-  __HAL_GPIO_EXTI_CLEAR_IT(OV7670_VSYNC_Pin);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  /* Enable VSYNC interrupt (PA11 -> EXTI11, last step before main loop) */
+  Pipeline_ClearVsyncPending();
+  Pipeline_EnableVsyncIrq();
 
   /* USER CODE END 2 */
 
