@@ -116,15 +116,12 @@ int main(void)
   DWT_Init();
   debug_printf("DWT init OK\n");
 
-  if (OV7670_Init())
-  {
-    debug_printf("OV7670 init OK\n");
-  }
-  else
+  if (!OV7670_Init())
   {
     debug_printf("OV7670 init FAILED (SCCB NACK)\n");
     Error_Handler();
   }
+  debug_printf("OV7670 init OK\n");
 
   LCD_Init();
   debug_printf("LCD init OK\n");
