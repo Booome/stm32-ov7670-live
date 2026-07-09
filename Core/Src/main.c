@@ -21,7 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "dwt_delay.h"
+#include "ov7670_sccb.h"
+#include "ov7670.h"
+#include "st7735.h"
+#include "camera.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -103,8 +107,19 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  /* Enable TIM3 DMA request on CC4 match — triggers DMA Ch3 to read OV7670_DATA_PORT->IDR */
+  /* Enable TIM3 DMA request on CC4 match - triggers DMA Ch3 to read OV7670_DATA_PORT->IDR */
   __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_CC4);
+
+  /* BSP initialization (order matters: DWT -> OV7670 -> LCD -> Camera) */
+  DWT_Init();
+  SCCB_Init();
+  OV7670_Init();
+  LCD_Init();
+  Camera_Init();
+
+  /* Clear pending VSYNC interrupt before enabling */
+  __HAL_GPIO_EXTI_CLEAR_IT(OV7670_VSYNC_Pin);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE END 2 */
 
@@ -115,6 +130,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    Camera_Poll();
   }
   /* USER CODE END 3 */
 }
