@@ -128,7 +128,7 @@ void Pipeline_Poll(void)
   }
 }
 
-void Pipeline_OnVsync(void)
+static void pipeline_on_vsync(void)
 {
   if (s_state != PIPELINE_STATE_IDLE)
   {
@@ -144,11 +144,11 @@ void Pipeline_OnVsync(void)
   /* Enable FIFO write (NAND gate with HREF) */
   OV7670_FIFO_WR_High();
 
-  /* Start non-blocking 2ms delay */
+  /* Start non-blocking delay */
   DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
 }
 
-void Pipeline_OnDmaHalfCplt(void)
+static void pipeline_on_dma_half_cplt(void)
 {
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
@@ -161,7 +161,7 @@ void Pipeline_OnDmaHalfCplt(void)
   s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
-void Pipeline_OnDmaCplt(void)
+static void pipeline_on_dma_cplt(void)
 {
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
@@ -179,7 +179,7 @@ void Pipeline_OnDmaCplt(void)
   }
 }
 
-void Pipeline_OnSpiDmaCplt(void)
+static void pipeline_on_spi_dma_cplt(void)
 {
   s_spi_dma_busy = false;
 }
@@ -189,13 +189,13 @@ void Pipeline_OnSpiDmaCplt(void)
 static void pipeline_dma_half_cplt_cb(DMA_HandleTypeDef *hdma)
 {
   (void)hdma;
-  Pipeline_OnDmaHalfCplt();
+  pipeline_on_dma_half_cplt();
 }
 
 static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma)
 {
   (void)hdma;
-  Pipeline_OnDmaCplt();
+  pipeline_on_dma_cplt();
 }
 
 /* ---- HAL weak function overrides ---- */
@@ -204,7 +204,7 @@ static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma)
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   (void)hspi;
-  Pipeline_OnSpiDmaCplt();
+  pipeline_on_spi_dma_cplt();
 }
 
 /** @brief  GPIO EXTI callback (VSYNC frame sync) */
@@ -214,5 +214,5 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     return;
   }
-  Pipeline_OnVsync();
+  pipeline_on_vsync();
 }

@@ -80,16 +80,4 @@ Pipeline_StateTypeDef Pipeline_GetState(void);
 /** @brief  Poll for non-blocking delay completion (call from main loop) */
 void                  Pipeline_Poll(void);
 
-/** @brief  VSYNC interrupt handler (call from HAL_GPIO_EXTI_Callback) */
-void                  Pipeline_OnVsync(void);
-
-/** @brief  Camera DMA half-transfer callback (call from HAL_DMA_XferHalfCpltCallback) */
-void                  Pipeline_OnDmaHalfCplt(void);
-
-/** @brief  Camera DMA transfer-complete callback (call from HAL_DMA_XferCpltCallback) */
-void                  Pipeline_OnDmaCplt(void);
-
-/** @brief  SPI DMA transfer-complete callback (call from HAL_SPI_TxCpltCallback) */
-void                  Pipeline_OnSpiDmaCplt(void);
-
 #endif /* PIPELINE_H */
