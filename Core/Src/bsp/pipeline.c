@@ -30,7 +30,7 @@ static volatile bool s_spi_dma_busy;
 static DWT_DelayHandle s_vsync_delay;
 
 /* Frame buffer: 640 bytes, 2 x 320B ping-pong */
-static uint8_t PipelineBuffer[PIPELINE_BUFFER_SIZE];
+static uint8_t s_pipeline_buffer[PIPELINE_BUFFER_SIZE];
 
 /* Forward declarations for DMA callback wrappers */
 static void pipeline_dma_half_cplt_cb(DMA_HandleTypeDef *hdma);
@@ -59,7 +59,7 @@ static void read_start(void)
   s_spi_dma_busy = false;
 
   /*
-   * Start Camera DMA: GPIOA->IDR -> PipelineBuffer[640], Circular
+   * Start Camera DMA: GPIOA->IDR -> s_pipeline_buffer[640], Circular
    *
    * Set callback function pointers before starting DMA.
    * TIM3 CC4 DMA request triggers one transfer per RCK cycle.
@@ -68,7 +68,7 @@ static void read_start(void)
   hdma_tim3_ch4_up.XferCpltCallback = pipeline_dma_cplt_cb;
   HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
                     (uint32_t)OV7670_DATA_ADDR,
-                    (uint32_t)PipelineBuffer,
+                    (uint32_t)s_pipeline_buffer,
                     PIPELINE_BUFFER_SIZE);
 
   /* Start TIM3 CH4 PWM (RCK 1.44MHz) */
@@ -157,7 +157,7 @@ void Pipeline_OnDmaHalfCplt(void)
 
   /* Buffer A [0..319] ready, send via SPI DMA */
   s_spi_dma_busy = true;
-  HAL_SPI_Transmit_DMA(&hspi2, PipelineBuffer, PIPELINE_HALF_SIZE);
+  HAL_SPI_Transmit_DMA(&hspi2, s_pipeline_buffer, PIPELINE_HALF_SIZE);
   s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
@@ -170,7 +170,7 @@ void Pipeline_OnDmaCplt(void)
 
   /* Buffer B [320..639] ready, send via SPI DMA */
   s_spi_dma_busy = true;
-  HAL_SPI_Transmit_DMA(&hspi2, &PipelineBuffer[PIPELINE_HALF_SIZE], PIPELINE_HALF_SIZE);
+  HAL_SPI_Transmit_DMA(&hspi2, &s_pipeline_buffer[PIPELINE_HALF_SIZE], PIPELINE_HALF_SIZE);
   s_bytes_sent += PIPELINE_HALF_SIZE;
 
   if (s_bytes_sent >= PIPELINE_FRAME_SIZE)
