@@ -61,7 +61,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 | Category | Rule | Example |
 |----------|------|---------|
-| BSP functions (public + static) | Module_Action() PascalCase | SCCB_WriteReg(), LCD_Init() |
+| BSP public functions (.h) | Module_Action() PascalCase | SCCB_WriteReg(), LCD_Init() |
+| BSP static inline (.h) | Module_Action() PascalCase | Pipeline_EnableVsyncIrq() |
+| BSP static functions (.c) | Action() PascalCase | WriteByte(), OnVsync() |
 | HAL/CubeMX functions | keep as-is | HAL_GPIO_WritePin(), MX_GPIO_Init() |
 | Local variables | snake_case | reg_addr, byte_sent |
 | Global handles | h + PascalCase | hspi2, htim3, huart1 |
@@ -69,6 +71,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 | Macros / constants | UPPER_SNAKE_CASE | OV7670_D0_Pin, CAMERA_FRAME_SIZE |
 | Typedefs | PascalCase + TypeDef | Camera_StateTypeDef |
 | Enum values | UPPER_SNAKE_CASE | CAMERA_STATE_IDLE |
+
+> **通用原则**：作用范围越广，命名描述需要越多限定。
 
 ### Comments
 
