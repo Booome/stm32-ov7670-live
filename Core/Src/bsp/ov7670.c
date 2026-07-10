@@ -25,6 +25,7 @@
 #define OV7670_REG_COM7          0x12u
 #define OV7670_REG_COM8          0x13u
 #define OV7670_REG_COM9          0x14u
+#define OV7670_REG_COM10         0x15u
 #define OV7670_REG_MVFP          0x1Eu
 #define OV7670_REG_TSLB          0x3Au
 #define OV7670_REG_COM11         0x3Bu
@@ -219,6 +220,9 @@ static const struct
   { OV7670_REG_SCALING_PCLK_DIV,   0xF1u }, /* PCLK_DIV: /2 (match DCW by2)  */
   { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                      */
 
+  /* ---- COM10: VSYNC/HREF/PCLK timing ---- */
+  { OV7670_REG_COM10, 0x00u },
+
   /* ---- Gamma curve (0x7A-0x89) ---- */
   { OV7670_REG_GAM0,  0x20u },
   { OV7670_REG_GAM1,  0x10u },
@@ -342,7 +346,7 @@ static const struct
 
   /* ---- Frame rate / noise ---- */
   { OV7670_REG_ARBLM,    0x11u },
-  { OV7670_REG_COM11,    0x0Au },
+  { OV7670_REG_COM11,    0x12u },
   { OV7670_REG_NT_CTRL,  0x88u },
   { OV7670_REG_MAGIC_96, 0x00u },
   { OV7670_REG_MAGIC_97, 0x30u },
