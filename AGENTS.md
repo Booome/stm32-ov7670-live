@@ -61,7 +61,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 | Category | Rule | Example |
 |----------|------|---------|
-| BSP functions | Module_Action() PascalCase | SCCB_WriteReg(), LCD_Init() |
+| BSP functions (public + static) | Module_Action() PascalCase | SCCB_WriteReg(), LCD_Init() |
 | HAL/CubeMX functions | keep as-is | HAL_GPIO_WritePin(), MX_GPIO_Init() |
 | Local variables | snake_case | reg_addr, byte_sent |
 | Global handles | h + PascalCase | hspi2, htim3, huart1 |

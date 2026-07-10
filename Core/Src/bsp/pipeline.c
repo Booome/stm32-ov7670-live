@@ -33,8 +33,8 @@ static DWT_DelayHandle s_vsync_delay;
 static uint8_t s_pipeline_buffer[PIPELINE_BUFFER_SIZE];
 
 /* Forward declarations for DMA callback wrappers */
-static void pipeline_dma_half_cplt_cb(DMA_HandleTypeDef *hdma);
-static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma);
+static void Pipeline_DmaHalfCpltCb(DMA_HandleTypeDef *hdma);
+static void Pipeline_DmaCpltCb(DMA_HandleTypeDef *hdma);
 
 /**
   * @brief   Start FIFO read pipeline
@@ -42,7 +42,7 @@ static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma);
   *          Called after VSYNC delay expires. Sets up FIFO read pointer,
   *          LCD address window, then starts TIM3 PWM + Camera DMA.
   */
-static void read_start(void)
+static void Pipeline_ReadStart(void)
 {
   /* Reset FIFO read pointer */
   OV7670_FIFO_RRST_Low();
@@ -64,8 +64,8 @@ static void read_start(void)
    * Set callback function pointers before starting DMA.
    * TIM3 CC4 DMA request triggers one transfer per RCK cycle.
    */
-  hdma_tim3_ch4_up.XferHalfCpltCallback = pipeline_dma_half_cplt_cb;
-  hdma_tim3_ch4_up.XferCpltCallback = pipeline_dma_cplt_cb;
+  hdma_tim3_ch4_up.XferHalfCpltCallback = Pipeline_DmaHalfCpltCb;
+  hdma_tim3_ch4_up.XferCpltCallback = Pipeline_DmaCpltCb;
   HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
                     (uint32_t)OV7670_DATA_ADDR,
                     (uint32_t)s_pipeline_buffer,
@@ -80,7 +80,7 @@ static void read_start(void)
 /**
   * @brief   Complete frame capture and return to IDLE
   */
-static void frame_done(void)
+static void Pipeline_FrameDone(void)
 {
   /* Wait for last SPI DMA to finish */
   while (s_spi_dma_busy)
@@ -119,16 +119,16 @@ void Pipeline_Poll(void)
   {
     if (DWT_DelayExpired(&s_vsync_delay))
     {
-      read_start();
+      Pipeline_ReadStart();
     }
   }
   else if (s_state == PIPELINE_STATE_FRAME_DONE)
   {
-    frame_done();
+    Pipeline_FrameDone();
   }
 }
 
-static void pipeline_on_vsync(void)
+static void Pipeline_OnVsync(void)
 {
   if (s_state != PIPELINE_STATE_IDLE)
   {
@@ -148,7 +148,7 @@ static void pipeline_on_vsync(void)
   DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
 }
 
-static void pipeline_on_dma_half_cplt(void)
+static void Pipeline_OnDmaHalfCplt(void)
 {
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
@@ -161,7 +161,7 @@ static void pipeline_on_dma_half_cplt(void)
   s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
-static void pipeline_on_dma_cplt(void)
+static void Pipeline_OnDmaCplt(void)
 {
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
@@ -179,23 +179,23 @@ static void pipeline_on_dma_cplt(void)
   }
 }
 
-static void pipeline_on_spi_dma_cplt(void)
+static void Pipeline_OnSpiDmaCplt(void)
 {
   s_spi_dma_busy = false;
 }
 
 /* ---- DMA callback wrappers (function pointer signature) ---- */
 
-static void pipeline_dma_half_cplt_cb(DMA_HandleTypeDef *hdma)
+static void Pipeline_DmaHalfCpltCb(DMA_HandleTypeDef *hdma)
 {
   (void)hdma;
-  pipeline_on_dma_half_cplt();
+  Pipeline_OnDmaHalfCplt();
 }
 
-static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma)
+static void Pipeline_DmaCpltCb(DMA_HandleTypeDef *hdma)
 {
   (void)hdma;
-  pipeline_on_dma_cplt();
+  Pipeline_OnDmaCplt();
 }
 
 /* ---- HAL weak function overrides ---- */
@@ -204,7 +204,7 @@ static void pipeline_dma_cplt_cb(DMA_HandleTypeDef *hdma)
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   (void)hspi;
-  pipeline_on_spi_dma_cplt();
+  Pipeline_OnSpiDmaCplt();
 }
 
 /** @brief  GPIO EXTI callback (VSYNC frame sync) */
@@ -214,5 +214,5 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     return;
   }
-  pipeline_on_vsync();
+  Pipeline_OnVsync();
 }

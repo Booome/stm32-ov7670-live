@@ -20,7 +20,7 @@ static uint32_t s_cached_clock;
   *          Called from DWT_Init() and lazily when a delay function
   *          detects that SystemCoreClock has changed.
   */
-static void dwt_refresh_cache(void)
+static void DWT_RefreshCache(void)
 {
   s_cycles_per_us = SystemCoreClock / 1000000u;
   s_max_us        = UINT32_MAX / s_cycles_per_us;
@@ -37,11 +37,11 @@ static void dwt_refresh_cache(void)
   *          Overhead: 1 volatile load + 1 compare + 1 branch (~2 cycles
   *          when clock unchanged, branch predicted not-taken).
   */
-static inline void dwt_check_refresh(void)
+static inline void DWT_CheckRefresh(void)
 {
   if (SystemCoreClock != s_cached_clock)
   {
-    dwt_refresh_cache();
+    DWT_RefreshCache();
   }
 }
 
@@ -55,7 +55,7 @@ static inline void dwt_check_refresh(void)
   *          it is saturated to that maximum. The resulting delay will be
   *          at least as long as requested, never shorter.
   */
-static inline uint32_t dwt_us_to_ticks(uint32_t us)
+static inline uint32_t DWT_UsToTicks(uint32_t us)
 {
   assert_param(us <= s_max_us);
   if (us > s_max_us)
@@ -86,7 +86,7 @@ void DWT_Init(void)
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0u;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-  dwt_refresh_cache();
+  DWT_RefreshCache();
 }
 
 uint32_t DWT_GetCycles(void)
@@ -96,7 +96,7 @@ uint32_t DWT_GetCycles(void)
 
 void DWT_DelayUs(uint32_t us)
 {
-  dwt_check_refresh();
+  DWT_CheckRefresh();
 
   if (us <= s_max_us)
   {
@@ -119,7 +119,7 @@ void DWT_DelayUs(uint32_t us)
 
 void DWT_DelayMs(uint32_t ms)
 {
-  dwt_check_refresh();
+  DWT_CheckRefresh();
 
   if (ms <= s_max_ms)
   {
@@ -142,9 +142,9 @@ void DWT_DelayMs(uint32_t ms)
 
 void DWT_DelayStart(DWT_DelayHandle *h, uint32_t us)
 {
-  dwt_check_refresh();
+  DWT_CheckRefresh();
   h->start_cycles = DWT->CYCCNT;
-  h->target_ticks = dwt_us_to_ticks(us);
+  h->target_ticks = DWT_UsToTicks(us);
   h->active = 1u;
 }
 

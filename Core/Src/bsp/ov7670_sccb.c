@@ -27,15 +27,15 @@
 #define SCCB_T_HIGH_CYC    50u
 
 /* Static function prototypes */
-static void    sccb_start(void);
-static void    sccb_stop(void);
-static bool    sccb_write_byte(uint8_t byte);
-static uint8_t sccb_read_byte(bool ack);
+static void    SCCB_Start(void);
+static void    SCCB_Stop(void);
+static bool    SCCB_WriteByte(uint8_t byte);
+static uint8_t SCCB_ReadByte(bool ack);
 
 /**
   * @brief   Generate START condition (SDA falling edge while SCL high)
   */
-static void sccb_start(void)
+static void SCCB_Start(void)
 {
   SCCB_SDA_High();
   SCCB_SCL_High();
@@ -48,7 +48,7 @@ static void sccb_start(void)
 /**
   * @brief   Generate STOP condition (SDA rising edge while SCL high)
   */
-static void sccb_stop(void)
+static void SCCB_Stop(void)
 {
   SCCB_SDA_Low();
   SCCB_SCL_Low();
@@ -65,7 +65,7 @@ static void sccb_stop(void)
   * @retval  true   ACK received (SDA low on 9th clock)
   * @retval  false  NACK received (SDA high on 9th clock)
   */
-static bool sccb_write_byte(uint8_t byte)
+static bool SCCB_WriteByte(uint8_t byte)
 {
   for (uint8_t i = 0u; i < 8u; i++)
   {
@@ -99,7 +99,7 @@ static bool sccb_write_byte(uint8_t byte)
   * @param   ack  true = send ACK (continue reading), false = send NACK (last byte)
   * @return  Byte read from slave
   */
-static uint8_t sccb_read_byte(bool ack)
+static uint8_t SCCB_ReadByte(bool ack)
 {
   uint8_t byte = 0u;
 
@@ -142,46 +142,46 @@ void SCCB_Init(void)
 
 bool SCCB_WriteReg(uint8_t reg_addr, uint8_t data)
 {
-  sccb_start();
-  if (!sccb_write_byte(SCCB_DEV_ADDR_W))
+  SCCB_Start();
+  if (!SCCB_WriteByte(SCCB_DEV_ADDR_W))
   {
-    sccb_stop();
+    SCCB_Stop();
     return false;
   }
-  if (!sccb_write_byte(reg_addr))
+  if (!SCCB_WriteByte(reg_addr))
   {
-    sccb_stop();
+    SCCB_Stop();
     return false;
   }
-  if (!sccb_write_byte(data))
+  if (!SCCB_WriteByte(data))
   {
-    sccb_stop();
+    SCCB_Stop();
     return false;
   }
-  sccb_stop();
+  SCCB_Stop();
   return true;
 }
 
 uint8_t SCCB_ReadReg(uint8_t reg_addr)
 {
-  sccb_start();
-  if (!sccb_write_byte(SCCB_DEV_ADDR_W))
+  SCCB_Start();
+  if (!SCCB_WriteByte(SCCB_DEV_ADDR_W))
   {
-    sccb_stop();
+    SCCB_Stop();
     return 0u;
   }
-  if (!sccb_write_byte(reg_addr))
+  if (!SCCB_WriteByte(reg_addr))
   {
-    sccb_stop();
+    SCCB_Stop();
     return 0u;
   }
-  sccb_start();  /* RESTART */
-  if (!sccb_write_byte(SCCB_DEV_ADDR_R))
+  SCCB_Start();  /* RESTART */
+  if (!SCCB_WriteByte(SCCB_DEV_ADDR_R))
   {
-    sccb_stop();
+    SCCB_Stop();
     return 0u;
   }
-  uint8_t data = sccb_read_byte(false);  /* NACK = last byte */
-  sccb_stop();
+  uint8_t data = SCCB_ReadByte(false);  /* NACK = last byte */
+  SCCB_Stop();
   return data;
 }

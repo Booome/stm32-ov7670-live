@@ -37,7 +37,7 @@ extern SPI_HandleTypeDef hspi2;
   *
   *          Caller manages CS. DC is set low before transmit.
   */
-static void lcd_write_cmd(uint8_t cmd)
+static void LCD_WriteCmd(uint8_t cmd)
 {
   LCD_DC_Low();
   HAL_SPI_Transmit(&hspi2, &cmd, 1u, HAL_MAX_DELAY);
@@ -50,7 +50,7 @@ static void lcd_write_cmd(uint8_t cmd)
   *
   *          Caller manages CS. DC is set high before transmit.
   */
-static void lcd_write_data(uint8_t *data, uint16_t len)
+static void LCD_WriteData(uint8_t *data, uint16_t len)
 {
   LCD_DC_High();
   HAL_SPI_Transmit(&hspi2, data, len, HAL_MAX_DELAY);
@@ -70,20 +70,20 @@ void LCD_Init(void)
   /* CS low for entire init sequence */
   LCD_CS_Low();
 
-  lcd_write_cmd(ST7735_CMD_SLPOUT);
+  LCD_WriteCmd(ST7735_CMD_SLPOUT);
   DWT_DelayMs(120u);
 
   uint8_t madctl = ST7735_MADCTL_VAL;
-  lcd_write_cmd(ST7735_CMD_MADCTL);
-  lcd_write_data(&madctl, 1u);
+  LCD_WriteCmd(ST7735_CMD_MADCTL);
+  LCD_WriteData(&madctl, 1u);
 
   uint8_t colmod = ST7735_COLMOD_RGB565;
-  lcd_write_cmd(ST7735_CMD_COLMOD);
-  lcd_write_data(&colmod, 1u);
+  LCD_WriteCmd(ST7735_CMD_COLMOD);
+  LCD_WriteData(&colmod, 1u);
 
-  lcd_write_cmd(ST7735_CMD_INVON);
-  lcd_write_cmd(ST7735_CMD_NORON);
-  lcd_write_cmd(ST7735_CMD_DISPON);
+  LCD_WriteCmd(ST7735_CMD_INVON);
+  LCD_WriteCmd(ST7735_CMD_NORON);
+  LCD_WriteCmd(ST7735_CMD_DISPON);
 
   /* CS high after init */
   LCD_CS_High();
@@ -109,13 +109,13 @@ void LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
   /* CS low for entire address window + RAMWR sequence */
   LCD_CS_Low();
 
-  lcd_write_cmd(ST7735_CMD_CASET);
-  lcd_write_data(caset, 4u);
+  LCD_WriteCmd(ST7735_CMD_CASET);
+  LCD_WriteData(caset, 4u);
 
-  lcd_write_cmd(ST7735_CMD_RASET);
-  lcd_write_data(raset, 4u);
+  LCD_WriteCmd(ST7735_CMD_RASET);
+  LCD_WriteData(raset, 4u);
 
-  lcd_write_cmd(ST7735_CMD_RAMWR);
+  LCD_WriteCmd(ST7735_CMD_RAMWR);
 
   /* DC=1 for pixel data, CS stays low for SPI DMA stream */
   LCD_DC_High();
