@@ -6,7 +6,7 @@
   *          SPI DMA (Normal) sends 320B half-buffers to ST7735 LCD.
   *
   *          Frame: 160x128 RGB565 = 40960 bytes = 128 x 320B half-buffers
-  *          VSYNC triggered, DWT non-blocking 2ms delay before read start.
+  *          VSYNC triggered, DWT non-blocking 1.3ms delay before read start.
   *
   *          Requires: DWT_Init, SCCB_Init, OV7670_Init, LCD_Init,
   *          MX_TIM3_Init, MX_SPI2_Init, MX_DMA_Init before Pipeline_Init.
@@ -50,7 +50,7 @@ typedef enum
 {
   PIPELINE_STATE_DISABLED = 0,    /**< Not yet initialized            */
   PIPELINE_STATE_IDLE,            /**< Waiting for VSYNC              */
-  PIPELINE_STATE_FRAME_START,     /**< VSYNC received, waiting 2ms    */
+  PIPELINE_STATE_FRAME_START,     /**< VSYNC received, waiting 1.3ms  */
   PIPELINE_STATE_FRAME_CAPTURING, /**< DMA pipeline active            */
   PIPELINE_STATE_FRAME_DONE       /**< Frame complete, cleaning up     */
 } Pipeline_StateTypeDef;

@@ -142,46 +142,31 @@ void SCCB_Init(void)
 
 bool SCCB_WriteReg(uint8_t reg_addr, uint8_t data)
 {
+  bool ok = false;
+
   GenStart();
-  if (!WriteByte(SCCB_DEV_ADDR_W))
-  {
-    GenStop();
-    return false;
-  }
-  if (!WriteByte(reg_addr))
-  {
-    GenStop();
-    return false;
-  }
-  if (!WriteByte(data))
-  {
-    GenStop();
-    return false;
-  }
+  if (!WriteByte(SCCB_DEV_ADDR_W)) goto cleanup;
+  if (!WriteByte(reg_addr))        goto cleanup;
+  if (!WriteByte(data))            goto cleanup;
+  ok = true;
+
+cleanup:
   GenStop();
-  return true;
+  return ok;
 }
 
 uint8_t SCCB_ReadReg(uint8_t reg_addr)
 {
+  uint8_t data = 0u;
+
   GenStart();
-  if (!WriteByte(SCCB_DEV_ADDR_W))
-  {
-    GenStop();
-    return 0u;
-  }
-  if (!WriteByte(reg_addr))
-  {
-    GenStop();
-    return 0u;
-  }
+  if (!WriteByte(SCCB_DEV_ADDR_W)) goto cleanup;
+  if (!WriteByte(reg_addr))        goto cleanup;
   GenStart();  /* RESTART */
-  if (!WriteByte(SCCB_DEV_ADDR_R))
-  {
-    GenStop();
-    return 0u;
-  }
-  uint8_t data = ReadByte(false);  /* NACK = last byte */
+  if (!WriteByte(SCCB_DEV_ADDR_R)) goto cleanup;
+  data = ReadByte(false);  /* NACK = last byte */
+
+cleanup:
   GenStop();
   return data;
 }

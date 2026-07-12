@@ -50,7 +50,7 @@ static void WriteCmd(uint8_t cmd)
   *
   *          Caller manages CS. DC is set high before transmit.
   */
-static void WriteData(uint8_t *data, uint16_t len)
+static void WriteData(const uint8_t *data, uint16_t len)
 {
   LCD_DC_High();
   HAL_SPI_Transmit(&hspi2, data, len, HAL_MAX_DELAY);

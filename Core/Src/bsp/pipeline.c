@@ -13,10 +13,6 @@
 extern TIM_HandleTypeDef htim3;
 extern SPI_HandleTypeDef hspi2;
 extern DMA_HandleTypeDef hdma_tim3_ch4_up;
-extern DMA_HandleTypeDef hdma_spi2_tx;
-
-/* GPIOA IDR address for Camera DMA source (defined in main.h) */
-/* OV7670_DATA_ADDR = (&(OV7670_DATA_PORT->IDR)) */
 
 /* VSYNC delay: 1.3ms (back porch 1.11ms + 190us safety margin) */
 #define PIPELINE_VSYNC_DELAY_US  1300u
@@ -179,11 +175,6 @@ static void OnDmaCplt(void)
   }
 }
 
-static void OnSpiDmaCplt(void)
-{
-  s_spi_dma_busy = false;
-}
-
 /* ---- DMA callback wrappers (function pointer signature) ---- */
 
 static void DmaHalfCpltCb(DMA_HandleTypeDef *hdma)
@@ -204,7 +195,7 @@ static void DmaCpltCb(DMA_HandleTypeDef *hdma)
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   (void)hspi;
-  OnSpiDmaCplt();
+  s_spi_dma_busy = false;
 }
 
 /** @brief  GPIO EXTI callback (VSYNC frame sync) */
