@@ -2,7 +2,7 @@
   * @file    st7735.h
   * @brief   ST7735 1.8" TFT LCD driver (160x128 RGB565)
   *
-  *          SPI2 18MHz 4-line serial interface.
+  *          SPI2 18MHz 4-line serial interface (Half-Duplex BIDIMODE).
   *          Provides initialization and frame buffer write setup.
   *          Requires DWT_Init() and MX_SPI2_Init() before use.
   */
@@ -73,5 +73,14 @@ void    LCD_Init(void);
   *          Caller must raise CS after frame transfer completes.
   */
 void    LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+
+/** @brief  Read an 8-bit register from ST7735
+  * @param  cmd  Register read command (e.g. 0xDA for RDID1)
+  * @retval Register value
+  *
+  *         Uses SPI half-duplex (BIDIMODE) to read via MOSI.
+  *         Requires SPI_DIRECTION_1LINE configuration.
+  */
+uint8_t  LCD_ReadReg(uint8_t cmd);
 
 #endif /* ST7735_H */

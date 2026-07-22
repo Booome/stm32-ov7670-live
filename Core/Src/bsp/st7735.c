@@ -82,6 +82,11 @@ static uint8_t ReadReg(uint8_t cmd)
   return value;
 }
 
+uint8_t LCD_ReadReg(uint8_t cmd)
+{
+  return ReadReg(cmd);
+}
+
 void LCD_Init(void)
 {
   /* Backlight on */
