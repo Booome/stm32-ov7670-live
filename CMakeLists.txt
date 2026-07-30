@@ -71,3 +71,47 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# ---- Unit test options (any TEST_* enabled => run tests instead of main app) ----
+option(TEST_TEST_LED "Enable TEST_LED smoke test (1Hz blink)" OFF)
+option(TEST_LOGIC    "Enable pure-logic unit tests"            OFF)
+option(TEST_SCCB     "Enable SCCB hardware-in-loop tests"      OFF)
+option(TEST_OV7670   "Enable OV7670 register tests"            OFF)
+option(TEST_LCD      "Enable LCD hardware tests"               OFF)
+
+if(TEST_TEST_LED OR TEST_LOGIC OR TEST_SCCB OR TEST_OV7670 OR TEST_LCD)
+    set(_unit_tests ON)
+endif()
+
+if(_unit_tests)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        ThirdParty/Unity/unity.c
+        Core/Src/test/test_runner.c
+    )
+    target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        ThirdParty/Unity
+        Core/Inc/test
+    )
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE UNIT_TESTS_ENABLED)
+
+    if(TEST_TEST_LED)
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_test_led.c)
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_TEST_LED)
+    endif()
+    if(TEST_LOGIC)
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_logic.c)
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_LOGIC)
+    endif()
+    if(TEST_SCCB)
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_sccb.c)
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_SCCB)
+    endif()
+    if(TEST_OV7670)
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_ov7670.c)
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_OV7670)
+    endif()
+    if(TEST_LCD)
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_lcd.c)
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_LCD)
+    endif()
+endif()

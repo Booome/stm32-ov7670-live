@@ -151,13 +151,13 @@ Pipeline init OK, enabling VSYNC...
 
 ### 开关体系
 
-| CMake Option | 测试组 | 类型 | 说明 |
-|---|---|---|---|
-| `TEST_TEST_LED` | TEST_LED 烟雾测试 | 硬件 | TEST_LED 1Hz 闪烁，验证框架基础设施（编译/烧录/运行/分支切换） |
-| `TEST_LOGIC` | 纯逻辑 | 纯逻辑 | 不依赖硬件：UsToTicks 边界、OV7670 寄存器表完整性等 |
-| `TEST_SCCB` | SCCB | 硬件在环 | 回读 OV7670 PID/MID 校验 SCCB 总线与接线 |
-| `TEST_OV7670` | OV7670 | 硬件在环 | 初始化后回读关键寄存器校验配置已写入 |
-| `TEST_LCD` | LCD | 硬件在环 | 初始化 + 纯色填充验证 SPI 通路 |
+| CMake Option | 测试组 | 类型 | 状态 | 说明 |
+|---|---|---|---|---|
+| `TEST_TEST_LED` | TEST_LED 烟雾测试 | 硬件 | 已实现 | TEST_LED 1Hz 闪烁，验证框架基础设施（编译/烧录/运行/分支切换） |
+| `TEST_LOGIC` | 纯逻辑 | 纯逻辑 | 待实现 | 不依赖硬件：UsToTicks 边界、OV7670 寄存器表完整性等 |
+| `TEST_SCCB` | SCCB | 硬件在环 | 待实现 | 回读 OV7670 PID/MID 校验 SCCB 总线与接线 |
+| `TEST_OV7670` | OV7670 | 硬件在环 | 待实现 | 初始化后回读关键寄存器校验配置已写入 |
+| `TEST_LCD` | LCD | 硬件在环 | 待实现 | 初始化 + 纯色填充验证 SPI 通路 |
 
 - 任一 `TEST_*` 开启即编译测试基础设施，并由 CMake 派生 `UNIT_TESTS_ENABLED` 宏，`main` 据此切换分支
 - 各组可任意组合，例如 `-DTEST_LOGIC=ON -DTEST_SCCB=ON`
@@ -169,10 +169,10 @@ Pipeline init OK, enabling VSYNC...
 ThirdParty/Unity/         Unity 测试框架（unity.h / unity_internals.h / unity.c）
 Core/Inc/test/            测试头文件
   test_runner.h           调度入口
-  test_*.h                各测试组头文件
+  test_test_led.h         TEST_LED 烟雾测试
 Core/Src/test/            测试实现
   test_runner.c           调度 + setUp/tearDown + LED 反馈
-  test_*.c                各测试组实现
+  test_test_led.c         1Hz 闪烁烟雾测试
 ```
 
 ### 触发机制
@@ -193,7 +193,7 @@ Core/Src/test/            测试实现
 ### 输出与反馈
 
 - **串口**：Unity 默认经 `putchar` -> `_write` -> `__io_putchar` -> `HAL_UART_Transmit` 输出到 USART1，复用现有调试链路，零额外配置
-- **TEST_LED (PA15)**：全部通过常亮，有失败快闪，便于无串口时肉眼判定
+- **TEST_LED (PA15)**：`TEST_TEST_LED` 组本身即 1Hz 闪烁（验证框架存活）；其他组跑完 Unity 后，全部通过常亮、有失败快闪，便于无串口时肉眼判定
 
 ### 构建示例
 
@@ -209,3 +209,14 @@ cmake --preset Debug -DTEST_LOGIC=ON -DTEST_SCCB=ON && cmake --build --preset De
 ```
 
 烧录后通过 USART1 (115200) 查看 Unity 测试报告，TEST_LED 指示通过/失败状态。
+
+### 资源占用
+
+| 构建配置 | RAM | FLASH |
+|----------|-----|-------|
+| 默认（无测试） | 3 KB (15%) | 23064 B (35.19%) |
+| TEST_TEST_LED=ON | 3272 B (15.98%) | 18812 B (28.70%) |
+
+> TEST_TEST_LED 模式 FLASH 反而更小：测试 main 跳过了 pipeline/OV7670/LCD 初始化，未调用的 BSP 函数被 `--gc-sections` 丢弃。
+
+TEST_TEST_LED 烟雾测试已在硬件上验证通过（LED 1Hz 闪烁）。

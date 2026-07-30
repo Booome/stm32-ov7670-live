@@ -26,6 +26,9 @@
 #include "st7735.h"
 #include "pipeline.h"
 #include "debug.h"
+#ifdef UNIT_TESTS_ENABLED
+#include "test_runner.h"
+#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -106,7 +109,9 @@ int main(void)
   MX_SPI2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+#ifdef UNIT_TESTS_ENABLED
+  TestRunner_Run();   /* runs selected test groups, LED feedback, never returns */
+#else
   debug_printf("\n\n=== STM32 OV7670 Live ===\n");
 
   /* Enable TIM3 CC4 DMA request (triggers Camera DMA per RCK cycle) */
@@ -132,7 +137,7 @@ int main(void)
   /* Enable VSYNC interrupt (PA11 -> EXTI11, last step before main loop) */
   Pipeline_ClearVsyncPending();
   Pipeline_EnableVsyncIrq();
-
+#endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
