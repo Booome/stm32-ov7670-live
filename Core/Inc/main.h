@@ -98,6 +98,8 @@ void Error_Handler(void);
 #define OV7670_VSYNC_EXTI_IRQn EXTI15_10_IRQn
 #define OV7670_HREF_Pin GPIO_PIN_12
 #define OV7670_HREF_GPIO_Port GPIOA
+#define TEST_LED_Pin GPIO_PIN_15
+#define TEST_LED_GPIO_Port GPIOA
 #define OV7670_PWDN_Pin GPIO_PIN_3
 #define OV7670_PWDN_GPIO_Port GPIOB
 #define OV7670_RESET_Pin GPIO_PIN_4

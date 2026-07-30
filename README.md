@@ -35,6 +35,7 @@ STM32F103C8T6 + OV7670 (AL422B FIFO) + ST7735 TFT LCD 实时摄像头取景器�
 | LCD_RES | PB14 | 硬件复位 |
 | LCD_BLK | PB9 | 背光 |
 | UART_TX | PA9 | 调试串口 115200 |
+| TEST_LED | PA15 | 测试指示 LED |
 
 ## 架构
 
@@ -102,6 +103,7 @@ Core/
 Drivers/             STM32 HAL + CMSIS
 cmake/               CMake 工具链 + CubeMX 生成
 docs/                设计文档
+ThirdParty/          第三方库（Unity 测试框架）
 ```
 
 ## 模块说明
@@ -142,3 +144,68 @@ Pipeline init OK, enabling VSYNC...
 ```
 
 > `debug_printf` 为阻塞 UART，不可在中断上下文使用。
+
+## 单元测试
+
+工程内置设备端单元测试框架（[Unity](https://github.com/ThrowTheSwitch/Unity)），通过编译期 CMake 开关切换：任一测试组被使能时，固件入口 `main` 分支到测试运行器；未使能任何组时，正常运行主程序，测试代码不参与编译。
+
+### 开关体系
+
+| CMake Option | 测试组 | 类型 | 说明 |
+|---|---|---|---|
+| `TEST_TEST_LED` | TEST_LED 烟雾测试 | 硬件 | TEST_LED 1Hz 闪烁，验证框架基础设施（编译/烧录/运行/分支切换） |
+| `TEST_LOGIC` | 纯逻辑 | 纯逻辑 | 不依赖硬件：UsToTicks 边界、OV7670 寄存器表完整性等 |
+| `TEST_SCCB` | SCCB | 硬件在环 | 回读 OV7670 PID/MID 校验 SCCB 总线与接线 |
+| `TEST_OV7670` | OV7670 | 硬件在环 | 初始化后回读关键寄存器校验配置已写入 |
+| `TEST_LCD` | LCD | 硬件在环 | 初始化 + 纯色填充验证 SPI 通路 |
+
+- 任一 `TEST_*` 开启即编译测试基础设施，并由 CMake 派生 `UNIT_TESTS_ENABLED` 宏，`main` 据此切换分支
+- 各组可任意组合，例如 `-DTEST_LOGIC=ON -DTEST_SCCB=ON`
+- 未使能时测试代码完全不编译，主程序零开销
+
+### 目录结构
+
+```
+ThirdParty/Unity/         Unity 测试框架（unity.h / unity_internals.h / unity.c）
+Core/Inc/test/            测试头文件
+  test_runner.h           调度入口
+  test_*.h                各测试组头文件
+Core/Src/test/            测试实现
+  test_runner.c           调度 + setUp/tearDown + LED 反馈
+  test_*.c                各测试组实现
+```
+
+### 触发机制
+
+`main.c` 的 USER CODE 区域通过宏切换：
+
+```c
+#ifdef UNIT_TESTS_ENABLED
+  TestRunner_Run();   /* 跑选中的测试组，LED 反馈，不返回 */
+#else
+  /* 正常 pipeline 初始化 + 主循环 */
+#endif
+```
+
+- 测试模式下 CubeMX 生成的外设初始化（GPIO/DMA/TIM3/SPI2/USART1）仍执行，但 USER CODE 内的 BSP 初始化（OV7670/LCD/Pipeline）被跳过，避免无硬件时 `OV7670_Init()` SCCB NACK 卡死
+- 各测试组入口按需初始化对应硬件
+
+### 输出与反馈
+
+- **串口**：Unity 默认经 `putchar` -> `_write` -> `__io_putchar` -> `HAL_UART_Transmit` 输出到 USART1，复用现有调试链路，零额外配置
+- **TEST_LED (PA15)**：全部通过常亮，有失败快闪，便于无串口时肉眼判定
+
+### 构建示例
+
+```bash
+# 正常主程序（默认，无测试）
+cmake --preset Debug && cmake --build --preset Debug
+
+# TEST_LED 烟雾测试
+cmake --preset Debug -DTEST_TEST_LED=ON && cmake --build --preset Debug
+
+# 组合：纯逻辑 + SCCB
+cmake --preset Debug -DTEST_LOGIC=ON -DTEST_SCCB=ON && cmake --build --preset Debug
+```
+
+烧录后通过 USART1 (115200) 查看 Unity 测试报告，TEST_LED 指示通过/失败状态。

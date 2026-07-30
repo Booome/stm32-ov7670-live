@@ -363,6 +363,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(OV7670_FIFO_OE_GPIO_Port, OV7670_FIFO_OE_Pin, GPIO_PIN_SET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(TEST_LED_GPIO_Port, TEST_LED_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : OV7670_D0_Pin OV7670_D1_Pin OV7670_D2_Pin OV7670_D3_Pin
                            OV7670_D4_Pin OV7670_D5_Pin OV7670_D6_Pin OV7670_D7_Pin
                            OV7670_HREF_Pin */
@@ -403,6 +406,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(OV7670_VSYNC_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : TEST_LED_Pin */
+  GPIO_InitStruct.Pin = TEST_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(TEST_LED_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 1, 0);
