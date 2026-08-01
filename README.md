@@ -210,6 +210,28 @@ cmake --preset Debug -DTEST_LOGIC=ON -DTEST_SCCB=ON && cmake --build --preset De
 
 烧录后通过 USART1 (115200) 查看 Unity 测试报告，TEST_LED 指示通过/失败状态。
 
+### CMake 选项缓存陷阱
+
+> **`-DTEST_*` 的值会被 CMake 缓存，之后不带 `-D` 重新 configure 仍沿用缓存值。** 切勿认为"没传 `-D` 就是 OFF"。
+
+- 示例：执行过 `cmake --preset Debug -DTEST_LCD=ON` 后，再运行 `cmake --preset Debug`（不带 `-D`），`TEST_LCD` 仍是 `ON`，测试依旧开启。
+- **规范做法**：每次切换测试状态都必须显式传 `-D` 并重新 configure：
+  ```bash
+  # 开启（可任意组合多个测试）
+  cmake --preset Debug -DTEST_LCD=ON -DTEST_LCD_DMA=ON && cmake --build --preset Debug
+
+  # 关闭，回到正常主程序
+  cmake --preset Debug -DTEST_LCD=OFF && cmake --build --preset Debug
+  ```
+- **查看当前生效值**：
+  ```bash
+  grep TEST_ build/Debug/CMakeCache.txt
+  ```
+- **彻底重置**：删除 build 目录后重新 configure：
+  ```bash
+  rm -rf build/Debug && cmake --preset Debug
+  ```
+
 ### 资源占用
 
 | 构建配置 | RAM | FLASH |

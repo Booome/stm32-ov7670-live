@@ -15,6 +15,7 @@
 - Toolchain: cmake/gcc-arm-none-eabi.cmake (--specs=nano.specs)
 - Constraints: RAM 20KB, FLASH 64KB
 - Debug build auto-defines `DEBUG` macro (cmake/stm32cubemx/CMakeLists.txt)
+- Unit-test options (TEST_TEST_LED/TEST_LOGIC/TEST_SCCB/TEST_OV7670/TEST_LCD/TEST_LCD_DMA) are cached by CMake: once set via `-DTEST_*=ON`, later `cmake --preset Debug` without `-D` reuses the cached value. ALWAYS pass `-D` explicitly for every switch (e.g. `-DTEST_LCD=OFF` to return to the normal app). Check current state with `grep TEST_ build/Debug/CMakeCache.txt`. Do NOT assume "no `-D` means OFF".
 
 ## File Structure
 
