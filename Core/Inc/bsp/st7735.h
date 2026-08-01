@@ -83,4 +83,20 @@ void    LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
   */
 uint8_t  LCD_ReadReg(uint8_t cmd);
 
+/** @brief  Read multiple bytes from ST7735 register
+  * @param  cmd   Read command (e.g. 0x0B for RDD_MADCTL, returns 2 bytes)
+  * @param  data  Buffer to store received bytes
+  * @param  len   Number of bytes to read
+  * @note   RDD_MADCTL/RDD_COLMOD return [dummy, value]; RDID1/2/3 return [value]
+  */
+void    LCD_ReadRegMulti(uint8_t cmd, uint8_t *data, uint16_t len);
+
+/** @brief  Send pixel data to LCD via SPI (blocking)
+  * @param  data  RGB565 pixel data
+  * @param  len   Number of bytes to send
+  * @note   Caller must call LCD_SetAddrWindow() first (leaves CS low, DC high).
+  *         Caller raises CS after all pixel data is sent.
+  */
+void    LCD_WritePixels(const uint8_t *data, uint16_t len);
+
 #endif /* ST7735_H */

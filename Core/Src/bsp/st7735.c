@@ -87,6 +87,22 @@ uint8_t LCD_ReadReg(uint8_t cmd)
   return ReadReg(cmd);
 }
 
+void LCD_ReadRegMulti(uint8_t cmd, uint8_t *data, uint16_t len)
+{
+  LCD_CS_Low();
+  LCD_DC_Low();
+
+  HAL_SPI_Transmit(&hspi2, &cmd, 1u, HAL_MAX_DELAY);
+  HAL_SPI_Receive(&hspi2, data, len, HAL_MAX_DELAY);
+
+  LCD_CS_High();
+}
+
+void LCD_WritePixels(const uint8_t *data, uint16_t len)
+{
+  HAL_SPI_Transmit(&hspi2, data, len, HAL_MAX_DELAY);
+}
+
 void LCD_Init(void)
 {
   /* Backlight on */
