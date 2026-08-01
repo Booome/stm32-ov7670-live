@@ -111,7 +111,9 @@ if(_unit_tests)
         target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_OV7670)
     endif()
     if(TEST_LCD)
-        target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_lcd.c)
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+            Core/Src/test/test_lcd.c
+            Core/Src/test/test_lcd_common.c)
         target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE TEST_LCD)
     endif()
 endif()
