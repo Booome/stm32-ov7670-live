@@ -12,6 +12,18 @@ extern SPI_HandleTypeDef hspi2;
 
 /* ST7735 command set */
 #define ST7735_CMD_SLPOUT   0x11u
+#define ST7735_CMD_FRMCTR1  0xB1u
+#define ST7735_CMD_FRMCTR2  0xB2u
+#define ST7735_CMD_FRMCTR3  0xB3u
+#define ST7735_CMD_INVCTR   0xB4u
+#define ST7735_CMD_PWCTR1   0xC0u
+#define ST7735_CMD_PWCTR2   0xC1u
+#define ST7735_CMD_PWCTR3   0xC2u
+#define ST7735_CMD_PWCTR4   0xC3u
+#define ST7735_CMD_PWCTR5   0xC4u
+#define ST7735_CMD_VMCTR1   0xC5u
+#define ST7735_CMD_GMCTRP1  0xE0u
+#define ST7735_CMD_GMCTRN1  0xE1u
 #define ST7735_CMD_MADCTL   0x36u
 #define ST7735_CMD_COLMOD   0x3Au
 #define ST7735_CMD_INVOFF   0x20u
@@ -22,6 +34,33 @@ extern SPI_HandleTypeDef hspi2;
 #define ST7735_CMD_RAMWR    0x2Cu
 #define ST7735_CMD_RDID1   0xDAu
 #define ST7735_RDID1_EXPECTED  0x7Cu
+
+/*
+ * Full init sequence used for ST7735S-compatible panels.
+ * These set frame rate, power/charge-pump levels, VCOM and the
+ * positive/negative gamma curves. On compatible controllers some
+ * registers may be ignored (harmless); gamma config usually helps
+ * balance red sub-pixel brightness which is low by default.
+ */
+static const uint8_t ST7735_INIT_SEQ[][18] =
+{
+  {ST7735_CMD_FRMCTR1, 3u, 0x01u, 0x2Cu, 0x2Du},
+  {ST7735_CMD_FRMCTR2, 3u, 0x01u, 0x2Cu, 0x2Du},
+  {ST7735_CMD_FRMCTR3, 6u, 0x01u, 0x2Cu, 0x2Du, 0x01u, 0x2Cu, 0x2Du},
+  {ST7735_CMD_INVCTR,  1u, 0x07u},
+  {ST7735_CMD_PWCTR1,  3u, 0xA2u, 0x02u, 0x84u},
+  {ST7735_CMD_PWCTR2,  1u, 0xC5u},
+  {ST7735_CMD_PWCTR3,  2u, 0x0Au, 0x00u},
+  {ST7735_CMD_PWCTR4,  2u, 0x8Au, 0x2Au},
+  {ST7735_CMD_PWCTR5,  2u, 0x8Au, 0xEEu},
+  {ST7735_CMD_VMCTR1,  1u, 0x0Eu},
+  {ST7735_CMD_GMCTRP1, 16u,
+   0x02u, 0x1Cu, 0x07u, 0x12u, 0x37u, 0x32u, 0x29u, 0x2Du,
+   0x29u, 0x25u, 0x2Bu, 0x39u, 0x00u, 0x01u, 0x03u, 0x10u},
+  {ST7735_CMD_GMCTRN1, 16u,
+   0x03u, 0x1Du, 0x07u, 0x06u, 0x2Eu, 0x2Cu, 0x29u, 0x2Du,
+   0x2Eu, 0x2Eu, 0x37u, 0x3Fu, 0x00u, 0x00u, 0x02u, 0x10u},
+};
 
 /*
  * MADCTL: D5=MV (landscape), D3=BGR
@@ -127,6 +166,13 @@ void LCD_Init(void)
 
   WriteCmd(ST7735_CMD_SLPOUT);
   DWT_DelayMs(120u);
+
+  /* Full panel init: frame rate, power, VCOM and gamma curves */
+  for (size_t i = 0u; i < (sizeof(ST7735_INIT_SEQ) / sizeof(ST7735_INIT_SEQ[0])); i++)
+  {
+    WriteCmd(ST7735_INIT_SEQ[i][0]);
+    WriteData(&ST7735_INIT_SEQ[i][2u], ST7735_INIT_SEQ[i][1]);
+  }
 
   uint8_t madctl = ST7735_MADCTL_VAL;
   WriteCmd(ST7735_CMD_MADCTL);
