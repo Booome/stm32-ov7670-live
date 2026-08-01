@@ -14,7 +14,7 @@ extern SPI_HandleTypeDef hspi2;
 #define ST7735_CMD_SLPOUT   0x11u
 #define ST7735_CMD_MADCTL   0x36u
 #define ST7735_CMD_COLMOD   0x3Au
-#define ST7735_CMD_INVON    0x21u
+#define ST7735_CMD_INVOFF   0x20u
 #define ST7735_CMD_NORON    0x13u
 #define ST7735_CMD_DISPON   0x29u
 #define ST7735_CMD_CASET    0x2Au
@@ -30,7 +30,7 @@ extern SPI_HandleTypeDef hspi2;
  * If image is upside down: toggle D7 (MY) -> 0xA8.
  * If red/blue swapped: toggle D3 (RGB) -> 0x20.
  */
-#define ST7735_MADCTL_VAL   0x28u
+#define ST7735_MADCTL_VAL   0xA0u  /* MY=1, MX=0, MV=1, BGR=0 */
 
 #define ST7735_COLMOD_RGB565  0x05u
 
@@ -119,7 +119,7 @@ void LCD_Init(void)
   debug_printf("LCD RDID1=0x%02X (expect 0x%02X)\n", id, ST7735_RDID1_EXPECTED);
   if (id != ST7735_RDID1_EXPECTED)
   {
-    Error_Handler();
+    debug_printf("WARNING: RDID1 mismatch, continuing init anyway\n");
   }
 
   /* CS low for entire init sequence */
@@ -136,7 +136,7 @@ void LCD_Init(void)
   WriteCmd(ST7735_CMD_COLMOD);
   WriteData(&colmod, 1u);
 
-  WriteCmd(ST7735_CMD_INVON);
+  WriteCmd(ST7735_CMD_INVOFF);
   WriteCmd(ST7735_CMD_NORON);
   WriteCmd(ST7735_CMD_DISPON);
 
