@@ -170,3 +170,37 @@ cleanup:
   GenStop();
   return data;
 }
+
+SCCB_ReadStatusTypeDef SCCB_ReadRegEx(uint8_t reg_addr, uint8_t *data)
+{
+  SCCB_ReadStatusTypeDef status = SCCB_READ_OK;
+
+  /* Bus idle check: SDA must be high before starting */
+  if (SCCB_SDA_Read() == GPIO_PIN_RESET)
+  {
+    return SCCB_READ_BUS_BUSY;
+  }
+
+  GenStart();
+  if (!WriteByte(SCCB_DEV_ADDR_W))
+  {
+    status = SCCB_READ_NACK_ADDR;
+    goto cleanup;
+  }
+  if (!WriteByte(reg_addr))
+  {
+    status = SCCB_READ_NACK_REG;
+    goto cleanup;
+  }
+  GenStart();  /* RESTART */
+  if (!WriteByte(SCCB_DEV_ADDR_R))
+  {
+    status = SCCB_READ_NACK_RADDR;
+    goto cleanup;
+  }
+  *data = ReadByte(false);  /* NACK = last byte */
+
+cleanup:
+  GenStop();
+  return status;
+}

@@ -49,7 +49,26 @@ static inline GPIO_PinState SCCB_SDA_Read(void)
   return HAL_GPIO_ReadPin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin);
 }
 
-/* ---- Public API ---- */
+/* ---- SCCB read status codes (test API) ---- */
+
+/** @brief  Status codes for SCCB_ReadRegEx diagnostics */
+typedef enum
+{
+  SCCB_READ_OK = 0,        /**< Transfer complete, data valid */
+  SCCB_READ_BUS_BUSY,      /**< SDA stuck low / bus not idle */
+  SCCB_READ_NACK_ADDR,     /**< Device address NACK (no response) */
+  SCCB_READ_NACK_REG,      /**< Register address NACK */
+  SCCB_READ_NACK_RADDR     /**< Read address NACK */
+} SCCB_ReadStatusTypeDef;
+
+/* ---- OV7670 read-only identity registers ---- */
+
+#define SCCB_REG_PID    0x0Au   /**< Product ID (expected 0x76)    */
+#define SCCB_REG_VER    0x0Bu   /**< Version ID (expected 0x73)    */
+#define SCCB_REG_MIDH   0x1Cu   /**< Manufacturer ID high (0x7A)   */
+#define SCCB_REG_MIDL   0x1Du   /**< Manufacturer ID low  (0xA2)   */
+
+/* ---- Public API (production, unchanged) ---- */
 
 /** @brief  Initialize SCCB bus (set pins idle high) */
 void    SCCB_Init(void);
@@ -67,5 +86,18 @@ bool    SCCB_WriteReg(uint8_t reg_addr, uint8_t data);
   * @return Byte read from register (0x00 if bus error)
   */
 uint8_t SCCB_ReadReg(uint8_t reg_addr);
+
+/* ---- Test API (new, with full status diagnostics) ---- */
+
+/** @brief  Read one byte from OV7670 register with status diagnostics
+  * @param  reg_addr  Register address (0x00-0xFF)
+  * @param  data      Pointer to store read byte (valid only on SCCB_READ_OK)
+  * @retval SCCB_READ_OK          Transfer complete, data valid
+  * @retval SCCB_READ_BUS_BUSY    SDA stuck low before transaction
+  * @retval SCCB_READ_NACK_ADDR   Device address NACK
+  * @retval SCCB_READ_NACK_REG    Register address NACK
+  * @retval SCCB_READ_NACK_RADDR  Read address NACK
+  */
+SCCB_ReadStatusTypeDef SCCB_ReadRegEx(uint8_t reg_addr, uint8_t *data);
 
 #endif /* OV7670_SCCB_H */
