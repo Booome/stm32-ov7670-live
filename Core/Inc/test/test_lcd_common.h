@@ -19,6 +19,7 @@
 #define LCD_TEST_PATTERN_COUNT  9u
 
 #define LCD_TEST_FONT_SCALE    4u
+#define LCD_TEST_FONT_SPACING  1u
 #define LCD_TEST_FONT_WIDTH    5u
 #define LCD_TEST_FONT_HEIGHT   7u
 #define LCD_TEST_FONT_X_START  70u
@@ -26,5 +27,16 @@
 
 void LcdTest_FillLine(uint8_t *buf, uint16_t y, uint8_t pattern_id);
 void LcdTest_OverlayDigit(uint8_t *buf, uint16_t y, uint8_t digit);
+
+/** @brief  Overlay a text label (digits and uppercase letters) on a line
+  * @param  buf      Line buffer (LCD_TEST_WIDTH x RGB565)
+  * @param  y        Current line index (0..LCD_TEST_HEIGHT-1)
+  * @param  x_start  Top-left column of the label
+  * @param  y_start  Top-left row of the label
+  * @param  text     Null-terminated label (e.g. "DMA", "BLK")
+  * @param  scale    Font scale factor (1 = 5x7 px, line width 1 px)
+  */
+void LcdTest_OverlayText(uint8_t *buf, uint16_t y, uint16_t x_start,
+                         uint16_t y_start, const char *text, uint8_t scale);
 
 #endif /* TEST_LCD_COMMON_H */

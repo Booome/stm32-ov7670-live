@@ -19,6 +19,37 @@ static const uint8_t kFont5x7[10][7] =
   {0x0Eu, 0x11u, 0x11u, 0x0Fu, 0x01u, 0x02u, 0x0Cu}   /* 9 */
 };
 
+/* 5x7 bitmap font for uppercase letters A-Z (182 bytes ROM) */
+static const uint8_t kFontLetters[26][7] =
+{
+  {0x0Eu, 0x11u, 0x11u, 0x1Fu, 0x11u, 0x11u, 0x11u},  /* A */
+  {0x1Eu, 0x11u, 0x11u, 0x1Eu, 0x11u, 0x11u, 0x1Eu},  /* B */
+  {0x0Eu, 0x11u, 0x10u, 0x10u, 0x10u, 0x11u, 0x0Eu},  /* C */
+  {0x1Eu, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x1Eu},  /* D */
+  {0x1Fu, 0x10u, 0x10u, 0x1Eu, 0x10u, 0x10u, 0x1Fu},  /* E */
+  {0x1Fu, 0x10u, 0x10u, 0x1Eu, 0x10u, 0x10u, 0x10u},  /* F */
+  {0x0Eu, 0x11u, 0x10u, 0x17u, 0x11u, 0x11u, 0x0Fu},  /* G */
+  {0x11u, 0x11u, 0x11u, 0x1Fu, 0x11u, 0x11u, 0x11u},  /* H */
+  {0x0Eu, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u, 0x0Eu},  /* I */
+  {0x07u, 0x02u, 0x02u, 0x02u, 0x02u, 0x12u, 0x0Cu},  /* J */
+  {0x11u, 0x12u, 0x14u, 0x18u, 0x14u, 0x12u, 0x11u},  /* K */
+  {0x10u, 0x10u, 0x10u, 0x10u, 0x10u, 0x10u, 0x1Fu},  /* L */
+  {0x11u, 0x1Bu, 0x15u, 0x15u, 0x11u, 0x11u, 0x11u},  /* M */
+  {0x11u, 0x19u, 0x15u, 0x13u, 0x11u, 0x11u, 0x11u},  /* N */
+  {0x0Eu, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x0Eu},  /* O */
+  {0x1Eu, 0x11u, 0x11u, 0x1Eu, 0x10u, 0x10u, 0x10u},  /* P */
+  {0x0Eu, 0x11u, 0x11u, 0x11u, 0x15u, 0x12u, 0x0Du},  /* Q */
+  {0x1Eu, 0x11u, 0x11u, 0x1Eu, 0x14u, 0x12u, 0x11u},  /* R */
+  {0x0Fu, 0x10u, 0x10u, 0x0Eu, 0x01u, 0x01u, 0x1Eu},  /* S */
+  {0x1Fu, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u},  /* T */
+  {0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x0Eu},  /* U */
+  {0x11u, 0x11u, 0x11u, 0x11u, 0x0Au, 0x0Au, 0x04u},  /* V */
+  {0x11u, 0x11u, 0x15u, 0x15u, 0x15u, 0x1Bu, 0x11u},  /* W */
+  {0x11u, 0x0Au, 0x04u, 0x04u, 0x04u, 0x0Au, 0x11u},  /* X */
+  {0x11u, 0x0Au, 0x04u, 0x04u, 0x04u, 0x04u, 0x04u},  /* Y */
+  {0x1Fu, 0x01u, 0x02u, 0x04u, 0x08u, 0x10u, 0x1Fu}   /* Z */
+};
+
 /**
   * @brief   Write a 16-bit color into line buffer at pixel x (big-endian RGB565)
   */
@@ -152,19 +183,59 @@ void LcdTest_FillLine(uint8_t *buf, uint16_t y, uint8_t pattern_id)
   }
 }
 
-void LcdTest_OverlayDigit(uint8_t *buf, uint16_t y, uint8_t digit)
+/**
+  * @brief   Get the 5x7 glyph row for a printable char
+  * @param   c    Character ('0'-'9' or 'A'-'Z')
+  * @param   row  Row index 0-6
+  * @retval  Bitmap byte, or 0 if char/row out of range
+  */
+static uint8_t GetGlyphRow(char c, uint8_t row)
 {
-  if (digit > 9u)
+  if (c >= '0' && c <= '9')
+  {
+    return kFont5x7[(uint8_t)(c - '0')][row];
+  }
+  if (c >= 'A' && c <= 'Z')
+  {
+    return kFontLetters[(uint8_t)(c - 'A')][row];
+  }
+  return 0u;
+}
+
+/**
+  * @brief   Overlay a single text label on one line buffer row
+  * @param   buf      Line buffer
+  * @param   y        Current line index
+  * @param   x_start  Top-left column of the label
+  * @param   y_start  Top-left row of the label
+  * @param   text     Null-terminated label
+  * @param   scale    Font scale factor (1 = 5x7 px, line width 1 px)
+  *
+  *          Draws a black background box behind the text and white font
+  *          pixels. Supports '0'-'9','A'-'Z'.
+  */
+void LcdTest_OverlayText(uint8_t *buf, uint16_t y, uint16_t x_start,
+                         uint16_t y_start, const char *text, uint8_t scale)
+{
+  uint16_t len = 0u;
+  while (text[len] != '\0')
+  {
+    len++;
+  }
+  if (len == 0u)
   {
     return;
   }
 
-  /* Draw black background box (2px padding around font) */
-  if (y >= (LCD_TEST_FONT_Y_START - 2u) &&
-      y <= (LCD_TEST_FONT_Y_START + LCD_TEST_FONT_HEIGHT * LCD_TEST_FONT_SCALE + 1u))
+  uint16_t char_step = (uint16_t)(LCD_TEST_FONT_WIDTH * scale + LCD_TEST_FONT_SPACING * scale);
+  uint16_t text_w = (uint16_t)(len * char_step - LCD_TEST_FONT_SPACING * scale);
+
+  /* Draw black background box (2px padding around text) */
+  if (y >= (y_start - 2u) &&
+      y <= (y_start + LCD_TEST_FONT_HEIGHT * scale + 1u))
   {
-    for (uint16_t x = (LCD_TEST_FONT_X_START - 2u);
-         x <= (LCD_TEST_FONT_X_START + LCD_TEST_FONT_WIDTH * LCD_TEST_FONT_SCALE + 1u);
+    for (uint16_t x = (x_start - 2u);
+         x <= (x_start + text_w + 1u);
          x++)
     {
       SetPixel(buf, x, LCD_TEST_BLACK);
@@ -172,22 +243,36 @@ void LcdTest_OverlayDigit(uint8_t *buf, uint16_t y, uint8_t digit)
   }
 
   /* Draw white font pixels */
-  if (y >= LCD_TEST_FONT_Y_START &&
-      y < (LCD_TEST_FONT_Y_START + LCD_TEST_FONT_HEIGHT * LCD_TEST_FONT_SCALE))
+  if (y >= y_start && y < (y_start + LCD_TEST_FONT_HEIGHT * scale))
   {
-    uint8_t font_row = (uint8_t)((y - LCD_TEST_FONT_Y_START) / LCD_TEST_FONT_SCALE);
-    uint8_t row_data = kFont5x7[digit][font_row];
+    uint8_t font_row = (uint8_t)((y - y_start) / scale);
+    uint16_t x_off = x_start;
 
-    for (uint8_t fc = 0u; fc < LCD_TEST_FONT_WIDTH; fc++)
+    for (uint16_t i = 0u; i < len; i++)
     {
-      if ((row_data & (0x10u >> fc)) != 0u)
+      uint8_t row_data = GetGlyphRow(text[i], font_row);
+
+      for (uint8_t fc = 0u; fc < LCD_TEST_FONT_WIDTH; fc++)
       {
-        uint16_t x_start = LCD_TEST_FONT_X_START + (uint16_t)fc * LCD_TEST_FONT_SCALE;
-        for (uint8_t s = 0u; s < LCD_TEST_FONT_SCALE; s++)
+        if ((row_data & (0x10u >> fc)) != 0u)
         {
-          SetPixel(buf, x_start + s, LCD_TEST_WHITE);
+          uint16_t px_start = x_off + (uint16_t)fc * scale;
+          for (uint8_t s = 0u; s < scale; s++)
+          {
+            SetPixel(buf, px_start + s, LCD_TEST_WHITE);
+          }
         }
       }
+      x_off += char_step;
     }
   }
+}
+
+void LcdTest_OverlayDigit(uint8_t *buf, uint16_t y, uint8_t digit)
+{
+  char d[2];
+  d[0] = (digit <= 9u) ? (char)('0' + digit) : '\0';
+  d[1] = '\0';
+  LcdTest_OverlayText(buf, y, LCD_TEST_FONT_X_START, LCD_TEST_FONT_Y_START,
+                      d, LCD_TEST_FONT_SCALE);
 }

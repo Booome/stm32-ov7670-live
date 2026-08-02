@@ -46,6 +46,7 @@ static void DrawFrameBlocking(uint8_t pattern_id)
   {
     LcdTest_FillLine(s_line_buf, y, pattern_id);
     LcdTest_OverlayDigit(s_line_buf, y, digit);
+    LcdTest_OverlayText(s_line_buf, y, 4u, 4u, "BLK", 1u);
     LCD_WritePixels(s_line_buf, LCD_TEST_LINE_SIZE);
   }
 

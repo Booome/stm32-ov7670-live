@@ -111,6 +111,7 @@ static void DrawFrameDma(uint8_t pattern_id)
   /* Line 0: fill front buffer, start DMA */
   LcdTest_FillLine(front, 0u, pattern_id);
   LcdTest_OverlayDigit(front, 0u, digit);
+  LcdTest_OverlayText(front, 0u, 4u, 4u, "DMA", 1u);
   HAL_SPI_Transmit_DMA(&hspi2, front, LCD_TEST_LINE_SIZE);
 
   for (uint16_t y = 1u; y < LCD_TEST_HEIGHT; y++)
@@ -118,6 +119,7 @@ static void DrawFrameDma(uint8_t pattern_id)
     /* Fill back buffer while DMA sends front (overlap) */
     LcdTest_FillLine(back, y, pattern_id);
     LcdTest_OverlayDigit(back, y, digit);
+    LcdTest_OverlayText(back, y, 4u, 4u, "DMA", 1u);
 
     /* Wait for front DMA to complete */
     WaitSpiReady(100u);
