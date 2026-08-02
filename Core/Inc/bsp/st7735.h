@@ -74,20 +74,23 @@ void    LCD_Init(void);
   */
 void    LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 
-/** @brief  Read an 8-bit register from ST7735
+/** @brief  Read an 8-bit register from ST7735 (STUB, always returns 0)
   * @param  cmd  Register read command (e.g. 0xDA for RDID1)
   * @retval Register value
   *
-  *         Uses SPI half-duplex (BIDIMODE) to read via MOSI.
-  *         Requires SPI_DIRECTION_1LINE configuration.
+  *         STM32F1 half-duplex (BIDIMODE) readback is unreliable for
+  *         ST7735: SCK free-runs in BIDIOE=0 RX mode and the panel's
+  *         tri-state timing requirement is missed, so reads return
+  *         pin residue instead of register data. Kept as a stub so
+  *         callers keep compiling; not usable for verification.
   */
 uint8_t  LCD_ReadReg(uint8_t cmd);
 
-/** @brief  Read multiple bytes from ST7735 register
-  * @param  cmd   Read command (e.g. 0x0B for RDD_MADCTL, returns 2 bytes)
-  * @param  data  Buffer to store received bytes
-  * @param  len   Number of bytes to read
-  * @note   RDD_MADCTL/RDD_COLMOD return [dummy, value]; RDID1/2/3 return [value]
+/** @brief  Read multiple bytes from ST7735 register (STUB, no-op)
+  * @param  cmd   Read command (e.g. 0x0B for RDD_MADCTL)
+  * @param  data  Buffer to store received bytes (unused)
+  * @param  len   Number of bytes to read (unused)
+  * @note   See LCD_ReadReg() caveat: half-duplex readback is unreliable.
   */
 void    LCD_ReadRegMulti(uint8_t cmd, uint8_t *data, uint16_t len);
 

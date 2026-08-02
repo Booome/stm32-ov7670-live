@@ -6,41 +6,11 @@
 #include "test_lcd_common.h"
 #include "st7735.h"
 #include "dwt_delay.h"
-#include "debug.h"
 #include "unity.h"
 #include "stm32f1xx_hal.h"
 #include "main.h"
 
 /* ---- Unity test functions ---- */
-
-void test_lcd_rdid1(void)
-{
-  TEST_ASSERT_EQUAL(0x7Cu, LCD_ReadReg(0xDAu));
-}
-
-void test_lcd_rdid2_rdid3(void)
-{
-  uint8_t rdid2 = LCD_ReadReg(0xDBu);
-  uint8_t rdid3 = LCD_ReadReg(0xDCu);
-  TEST_ASSERT_NOT_EQUAL(0x00u, rdid2);
-  TEST_ASSERT_NOT_EQUAL(0xFFu, rdid2);
-  TEST_ASSERT_NOT_EQUAL(0x00u, rdid3);
-  TEST_ASSERT_NOT_EQUAL(0xFFu, rdid3);
-}
-
-void test_lcd_madctl(void)
-{
-  uint8_t buf[2];
-  LCD_ReadRegMulti(0x0Bu, buf, 2u);
-  TEST_ASSERT_EQUAL(0x28u, buf[1]);
-}
-
-void test_lcd_colmod(void)
-{
-  uint8_t buf[2];
-  LCD_ReadRegMulti(0x0Cu, buf, 2u);
-  TEST_ASSERT_EQUAL(0x05u, buf[1]);
-}
 
 void test_lcd_addr_window(void)
 {
@@ -89,10 +59,6 @@ void RunLcdTests(void)
   LCD_Init();
 
   UNITY_BEGIN();
-  RUN_TEST(test_lcd_rdid1);
-  RUN_TEST(test_lcd_rdid2_rdid3);
-  RUN_TEST(test_lcd_madctl);
-  RUN_TEST(test_lcd_colmod);
   RUN_TEST(test_lcd_addr_window);
   UNITY_END();
 

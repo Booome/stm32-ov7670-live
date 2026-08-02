@@ -32,8 +32,6 @@ extern SPI_HandleTypeDef hspi2;
 #define ST7735_CMD_CASET    0x2Au
 #define ST7735_CMD_RASET    0x2Bu
 #define ST7735_CMD_RAMWR    0x2Cu
-#define ST7735_CMD_RDID1   0xDAu
-#define ST7735_RDID1_EXPECTED  0x7Cu
 
 /*
  * Full init sequence used for ST7735S-compatible panels.
@@ -103,38 +101,21 @@ static void WriteData(const uint8_t *data, uint16_t len)
   * @param   cmd  Register read command (e.g. 0xDA for RDID1)
   * @retval  Register value
   *
-  *          Sequence: CS low -> DC low -> send cmd (BIDIOE=1) ->
-  *          SPI switches to receive (BIDIOE=0) -> read 1 byte -> CS high.
-  *          Requires SPI_DIRECTION_1LINE in MX_SPI2_Init.
+  *         NOTE: STM32F1 half-duplex readback is unreliable for ST7735
+  *         (SCK free-runs in BIDIOE=0 RX mode and tri-state timing is
+  *         missed). Kept as stub; do not use for verification.
   */
-static uint8_t ReadReg(uint8_t cmd)
-{
-  uint8_t value = 0u;
-
-  LCD_CS_Low();
-  LCD_DC_Low();
-
-  HAL_SPI_Transmit(&hspi2, &cmd, 1u, HAL_MAX_DELAY);
-  HAL_SPI_Receive(&hspi2, &value, 1u, HAL_MAX_DELAY);
-
-  LCD_CS_High();
-  return value;
-}
-
 uint8_t LCD_ReadReg(uint8_t cmd)
 {
-  return ReadReg(cmd);
+  (void)cmd;
+  return 0u;
 }
 
 void LCD_ReadRegMulti(uint8_t cmd, uint8_t *data, uint16_t len)
 {
-  LCD_CS_Low();
-  LCD_DC_Low();
-
-  HAL_SPI_Transmit(&hspi2, &cmd, 1u, HAL_MAX_DELAY);
-  HAL_SPI_Receive(&hspi2, data, len, HAL_MAX_DELAY);
-
-  LCD_CS_High();
+  (void)cmd;
+  (void)data;
+  (void)len;
 }
 
 void LCD_WritePixels(const uint8_t *data, uint16_t len)
@@ -152,14 +133,6 @@ void LCD_Init(void)
   DWT_DelayUs(10u);
   LCD_RESET_High();
   DWT_DelayMs(120u);
-
-  /* Verify SPI communication by reading RDID1 */
-  uint8_t id = ReadReg(ST7735_CMD_RDID1);
-  debug_printf("LCD RDID1=0x%02X (expect 0x%02X)\n", id, ST7735_RDID1_EXPECTED);
-  if (id != ST7735_RDID1_EXPECTED)
-  {
-    debug_printf("WARNING: RDID1 mismatch, continuing init anyway\n");
-  }
 
   /* CS low for entire init sequence */
   LCD_CS_Low();
