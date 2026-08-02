@@ -15,4 +15,12 @@
   */
 void TestRunner_Run(void);
 
+/**
+  * @brief  Accumulated test failures across all groups.
+  * @note   Each RunXxxTests() adds its UNITY_END() return value to this.
+  *         Unity.TestFailures alone is not usable after a group's UNITY_END()
+  *         resets state for the next group, so the runner aggregates here.
+  */
+extern volatile int g_test_failures;
+
 #endif /* TEST_RUNNER_H */

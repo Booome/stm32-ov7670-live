@@ -4,6 +4,7 @@
   */
 #include "test_runner.h"
 #include "unity.h"
+#include "debug.h"
 #include "stm32f1xx_hal.h"
 #include "main.h"
 
@@ -36,10 +37,17 @@ void tearDown(void)
 {
 }
 
+/* Accumulated across groups; see test_runner.h */
+volatile int g_test_failures = 0;
+
 void TestRunner_Run(void)
 {
-  UNITY_BEGIN();
+  /* Emit blank lines to separate from previous session output */
+  debug_printf("\n\n\n");
+  debug_printf("=== Unit Test Runner ===\n");
 
+  /* Each RunXxxTests() owns its own UNITY_BEGIN()/UNITY_END();
+     UnityBegin/UnityEnd are not reentrant and reset test state. */
 #ifdef TEST_TEST_LED
   RunTestLedTests();   /* never returns: blinks TEST_LED at 1 Hz */
 #endif
@@ -59,12 +67,10 @@ void TestRunner_Run(void)
   RunLcdDmaTests();
 #endif
 
-  UNITY_END();
-
   /* TEST_LED feedback: all pass -> steady on, any fail -> fast blink. */
   for (;;)
   {
-    if (Unity.TestFailures == 0u)
+    if (g_test_failures == 0)
     {
       HAL_GPIO_WritePin(TEST_LED_GPIO_Port, TEST_LED_Pin, GPIO_PIN_SET);
     }

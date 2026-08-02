@@ -94,6 +94,11 @@ if(_unit_tests)
         Core/Inc/test
     )
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE UNIT_TESTS_ENABLED)
+    # UNITY_BEGIN uses __FILE__ by default (full path); override with
+    # __FILE_NAME__ (GCC 12+) so Unity reports the basename only.
+    target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+        "-DUNITY_BEGIN()=UnityBegin(__FILE_NAME__)"
+    )
 
     if(TEST_TEST_LED)
         target_sources(${CMAKE_PROJECT_NAME} PRIVATE Core/Src/test/test_test_led.c)

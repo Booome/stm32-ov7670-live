@@ -4,6 +4,7 @@
   */
 #include "test_lcd_dma.h"
 #include "test_lcd_common.h"
+#include "test_runner.h"
 #include "st7735.h"
 #include "dwt_delay.h"
 #include "debug.h"
@@ -144,7 +145,7 @@ void RunLcdDmaTests(void)
   UNITY_BEGIN();
   RUN_TEST(test_lcd_dma_basic);
   RUN_TEST(test_lcd_dma_full_frame);
-  UNITY_END();
+  g_test_failures += UNITY_END();
 
   /* Visual test loop: cycle through 9 patterns, 3 seconds each */
   for (;;)
