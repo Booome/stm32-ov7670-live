@@ -154,19 +154,14 @@ static void DiagStop(void)
 
 static void TestSccbAddrScan(void)
 {
-  /* Try common OV7670 SCCB/I2C addresses (8-bit write form) */
-  const uint8_t addrs[] = { 0x42, 0x44, 0x20, 0x21, 0x30, 0x78 };
-  const int n = sizeof(addrs) / sizeof(addrs[0]);
+  /* OV7670 SCCB device address (8-bit write form, confirmed from all reference designs) */
+  const uint8_t addr = 0x42u;
 
-  debug_printf("  Scanning %d addresses...\n", n);
-  for (int i = 0; i < n; i++)
-  {
-    DiagStart();
-    bool ack = DiagWriteByte(addrs[i]);
-    DiagStop();
-    debug_printf("    0x%02X -> %s\n", addrs[i], ack ? "ACK" : "NACK");
-    DWT_DelayMs(5u);
-  }
+  debug_printf("  Probing SCCB address 0x%02X...\n", addr);
+  DiagStart();
+  bool ack = DiagWriteByte(addr);
+  DiagStop();
+  debug_printf("    0x%02X -> %s\n", addr, ack ? "ACK" : "NACK");
   /* This test always passes; it's diagnostic only */
   TEST_PASS();
 }
