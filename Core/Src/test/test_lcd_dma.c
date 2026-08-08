@@ -41,7 +41,7 @@ static bool WaitSpiReady(uint32_t timeout_ms)
 
 /* ---- Unity test functions ---- */
 
-void test_lcd_dma_basic(void)
+void TestLcdDmaBasic(void)
 {
   static uint8_t dma_buf[LCD_TEST_LINE_SIZE];
 
@@ -63,7 +63,7 @@ void test_lcd_dma_basic(void)
   TEST_PASS();
 }
 
-void test_lcd_dma_full_frame(void)
+void TestLcdDmaFullFrame(void)
 {
   static uint8_t dma_buf[LCD_TEST_LINE_SIZE];
 
@@ -145,8 +145,8 @@ void RunLcdDmaTests(void)
   LCD_Init();
 
   UNITY_BEGIN();
-  RUN_TEST(test_lcd_dma_basic);
-  RUN_TEST(test_lcd_dma_full_frame);
+  RUN_TEST(TestLcdDmaBasic);
+  RUN_TEST(TestLcdDmaFullFrame);
   g_test_failures += UNITY_END();
 
   /* Visual test loop: cycle through 9 patterns, 3 seconds each */

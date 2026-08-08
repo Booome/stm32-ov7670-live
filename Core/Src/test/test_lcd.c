@@ -13,7 +13,7 @@
 
 /* ---- Unity test functions ---- */
 
-void test_lcd_addr_window(void)
+void TestLcdAddrWindow(void)
 {
   uint8_t pixel[2] = {0xF8u, 0x00u};  /* red */
 
@@ -61,7 +61,7 @@ void RunLcdTests(void)
   LCD_Init();
 
   UNITY_BEGIN();
-  RUN_TEST(test_lcd_addr_window);
+  RUN_TEST(TestLcdAddrWindow);
   g_test_failures += UNITY_END();
 
   /* Visual test loop: cycle through 9 patterns, 3 seconds each */

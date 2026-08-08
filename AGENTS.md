@@ -65,6 +65,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 | BSP public functions (.h) | Module_Action() PascalCase | SCCB_WriteReg(), LCD_Init() |
 | BSP static inline (.h) | Module_Action() PascalCase | Pipeline_EnableVsyncIrq() |
 | BSP static functions (.c) | Action() PascalCase | WriteByte(), OnVsync() |
+| Test functions (test_*.c) | Action() PascalCase | TestSccbReadPid(), TestOv7670Init() |
+| Test group entry (test_*.c) | Run<Group>Tests() PascalCase | RunSccbTests(), RunOv7670Tests() |
 | HAL/CubeMX functions | keep as-is | HAL_GPIO_WritePin(), MX_GPIO_Init() |
 | Local variables | snake_case | reg_addr, byte_sent |
 | Global handles | h + PascalCase | hspi2, htim3, huart1 |

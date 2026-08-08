@@ -19,12 +19,12 @@
  * calls ~10-15 cycles each) adds on top, so the programmed delay is
  * shorter than the target to avoid exceeding the 400 kHz limit.
  *
- *   t_LOW:  100 cycles delay + ~20 cycles GPIO = ~120 cyc = 1.67 us (>= 1.3 us)
- *   t_HIGH:  50 cycles delay + ~20 cycles GPIO =  ~70 cyc = 0.97 us (>= 600 ns)
- *   Total:  ~190 cycles = 2.64 us -> ~379 kHz (<= 400 kHz)
+ *   t_LOW:  200 cycles delay + ~20 cycles GPIO = ~220 cyc = 3.06 us (>= 1.3 us)
+ *   t_HIGH: 100 cycles delay + ~20 cycles GPIO = ~120 cyc = 1.67 us (>= 600 ns)
+ *   Total:  ~340 cycles = 4.72 us -> ~212 kHz (<= 400 kHz)
  */
-#define SCCB_T_LOW_CYC    100u
-#define SCCB_T_HIGH_CYC    50u
+#define SCCB_T_LOW_CYC    200u
+#define SCCB_T_HIGH_CYC   100u
 
 /* Static function prototypes */
 static void    GenStart(void);
@@ -162,7 +162,8 @@ uint8_t SCCB_ReadReg(uint8_t reg_addr)
   GenStart();
   if (!WriteByte(SCCB_DEV_ADDR_W)) goto cleanup;
   if (!WriteByte(reg_addr))        goto cleanup;
-  GenStart();  /* RESTART */
+  GenStop();
+  GenStart();  /* STOP + START (SCCB spec: no RESTART) */
   if (!WriteByte(SCCB_DEV_ADDR_R)) goto cleanup;
   data = ReadByte(false);  /* NACK = last byte */
 
@@ -192,7 +193,8 @@ SCCB_ReadStatusTypeDef SCCB_ReadRegEx(uint8_t reg_addr, uint8_t *data)
     status = SCCB_READ_NACK_REG;
     goto cleanup;
   }
-  GenStart();  /* RESTART */
+  GenStop();
+  GenStart();  /* STOP + START (SCCB spec: no RESTART) */
   if (!WriteByte(SCCB_DEV_ADDR_R))
   {
     status = SCCB_READ_NACK_RADDR;

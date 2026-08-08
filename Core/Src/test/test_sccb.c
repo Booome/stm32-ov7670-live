@@ -7,6 +7,7 @@
   *          stability over consecutive reads.
   */
 #include "test_sccb.h"
+#include "ov7670.h"
 #include "ov7670_sccb.h"
 #include "dwt_delay.h"
 #include "unity.h"
@@ -44,52 +45,73 @@ static uint8_t ReadRegChecked(uint8_t reg_addr)
 
 /* ---- Test cases ---- */
 
-static void test_sccb_read_pid(void)
+static void TestSccbReadPid(void)
 {
-  debug_printf("  Reading PID (0x%02X)...\n", SCCB_REG_PID);
-  uint8_t pid = ReadRegChecked(SCCB_REG_PID);
-  debug_printf("  PID = 0x%02X (expected 0x76)\n", pid);
-  TEST_ASSERT_EQUAL_UINT8(0x76u, pid);
+  TEST_ASSERT_EQUAL_UINT8(0x76u, ReadRegChecked(SCCB_REG_PID));
 }
 
-static void test_sccb_read_ver(void)
+static void TestSccbReadVer(void)
 {
-  debug_printf("  Reading VER (0x%02X)...\n", SCCB_REG_VER);
-  uint8_t ver = ReadRegChecked(SCCB_REG_VER);
-  debug_printf("  VER = 0x%02X (expected 0x73)\n", ver);
-  TEST_ASSERT_EQUAL_UINT8(0x73u, ver);
+  TEST_ASSERT_EQUAL_UINT8(0x73u, ReadRegChecked(SCCB_REG_VER));
 }
 
-static void test_sccb_read_midh(void)
+static void TestSccbReadMidh(void)
 {
-  debug_printf("  Reading MIDH (0x%02X)...\n", SCCB_REG_MIDH);
-  uint8_t midh = ReadRegChecked(SCCB_REG_MIDH);
-  debug_printf("  MIDH = 0x%02X (expected 0x7A)\n", midh);
-  TEST_ASSERT_EQUAL_UINT8(0x7Au, midh);
+  TEST_ASSERT_EQUAL_UINT8(0x7Fu, ReadRegChecked(SCCB_REG_MIDH));
 }
 
-static void test_sccb_read_midl(void)
+static void TestSccbReadMidl(void)
 {
-  debug_printf("  Reading MIDL (0x%02X)...\n", SCCB_REG_MIDL);
-  uint8_t midl = ReadRegChecked(SCCB_REG_MIDL);
-  debug_printf("  MIDL = 0x%02X (expected 0xA2)\n", midl);
-  TEST_ASSERT_EQUAL_UINT8(0xA2u, midl);
+  TEST_ASSERT_EQUAL_UINT8(0xA2u, ReadRegChecked(SCCB_REG_MIDL));
 }
 
-static void test_sccb_read_stability(void)
+static void TestSccbReadStability(void)
 {
-  debug_printf("  Reading PID 5 times for stability...\n");
   uint8_t values[5];
-  for (int i = 0; i < 5; i++)
+  for (uint8_t i = 0u; i < 5u; i++)
   {
     values[i] = ReadRegChecked(SCCB_REG_PID);
     DWT_DelayMs(10u);
-    debug_printf("    Read %d: 0x%02X\n", i, values[i]);
   }
-  for (int i = 1; i < 5; i++)
+  for (uint8_t i = 1u; i < 5u; i++)
   {
     TEST_ASSERT_EQUAL_UINT8(values[0], values[i]);
   }
+}
+
+/* ---- Diagnostic: verify GPIO can drive SCL/SDA low ---- */
+
+static void TestGpioDriveSclSda(void)
+{
+  GPIO_PinState rd;
+
+  /* SCL test (read via HAL even though pin is output) */
+  SCCB_SCL_High();
+  DWT_DelayMs(1u);
+  rd = HAL_GPIO_ReadPin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin);
+  TEST_ASSERT_EQUAL(GPIO_PIN_SET, rd);
+
+  SCCB_SCL_Low();
+  DWT_DelayMs(1u);
+  rd = HAL_GPIO_ReadPin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin);
+  TEST_ASSERT_EQUAL(GPIO_PIN_RESET, rd);
+
+  SCCB_SCL_High();
+  DWT_DelayMs(1u);
+
+  /* SDA test */
+  SCCB_SDA_High();
+  DWT_DelayMs(1u);
+  rd = SCCB_SDA_Read();
+  TEST_ASSERT_EQUAL(GPIO_PIN_SET, rd);
+
+  SCCB_SDA_Low();
+  DWT_DelayMs(1u);
+  rd = SCCB_SDA_Read();
+  TEST_ASSERT_EQUAL(GPIO_PIN_RESET, rd);
+
+  SCCB_SDA_High();
+  DWT_DelayMs(1u);
 }
 
 /* ---- Run all TEST_SCCB tests ---- */
@@ -98,18 +120,32 @@ void RunSccbTests(void)
 {
   UNITY_BEGIN();
 
-  /* Initialize DWT (SCCB timing depends on CYCCNT) and SCCB bus */
+  /* Initialize DWT (SCCB timing depends on CYCCNT) */
   DWT_Init();
+
+  /* OV7670 hardware power-up reset sequence (same as OV7670_Init) */
+  OV7670_PWDN_High();
+  DWT_DelayMs(1u);
+  OV7670_PWDN_Low();
+  DWT_DelayMs(1u);
+  OV7670_RESET_Low();
+  DWT_DelayMs(1u);
+  OV7670_RESET_High();
+  DWT_DelayMs(1u);
+
+  /* Initialize SCCB bus */
   SCCB_Init();
   DWT_DelayMs(10u);  /* let bus settle */
 
   debug_printf("[TEST_SCCB] SCCB bus & wiring verification\n");
 
-  RUN_TEST(test_sccb_read_pid);
-  RUN_TEST(test_sccb_read_ver);
-  RUN_TEST(test_sccb_read_midh);
-  RUN_TEST(test_sccb_read_midl);
-  RUN_TEST(test_sccb_read_stability);
+  RUN_TEST(TestGpioDriveSclSda);
+
+  RUN_TEST(TestSccbReadPid);
+  RUN_TEST(TestSccbReadVer);
+  RUN_TEST(TestSccbReadMidh);
+  RUN_TEST(TestSccbReadMidl);
+  RUN_TEST(TestSccbReadStability);
 
   UNITY_END();
 }
