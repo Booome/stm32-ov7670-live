@@ -26,6 +26,9 @@
 #ifdef TEST_LCD_DMA
 #include "test_lcd_dma.h"
 #endif
+#ifdef TEST_PIPELINE
+#include "test_pipeline.h"
+#endif
 
 /* Unity requires these hooks; empty by default.
    Hardware init is done per-group in each RunXxxTests() entry. */
@@ -65,6 +68,9 @@ void TestRunner_Run(void)
 #endif
 #ifdef TEST_LCD_DMA
   RunLcdDmaTests();
+#endif
+#ifdef TEST_PIPELINE
+  RunPipelineTests();   /* never returns: colorbar -> LCD streaming */
 #endif
 
   /* TEST_LED feedback: all pass -> steady on, any fail -> fast blink. */
