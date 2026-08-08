@@ -46,7 +46,7 @@
 | **SDA 拉死 / 总线忙** | SDA 被拉到低电平，AC K 时隙读到低 → **假 ACK**，读回全 0x00 | 事务开始前空闲检测：SDA 必须为高，否则返回 BUS_BUSY |
 | **设备地址无响应** | 摄像头没上电 / SCL 或 SDA 断线 / 地址不符，ACK 时隙 SDA 保持高 → **NACK** | 首个 `WriteByte(SCCB_DEV_ADDR_W)` 返回 false → NACK_ADDR |
 | **寄存器地址 NACK** | 写寄存器地址阶段无响应 | 第二个 `WriteByte(reg_addr)` 返回 false → NACK_REG |
-| **读地址 NACK** | RESTART 后读地址阶段无响应 | 第三个 `WriteByte(SCCB_DEV_ADDR_R)` 返回 false → NACK_RADDR |
+| **读地址 NACK** | 两阶段读的读阶段（STOP+START 后）设备地址无响应 | 第三个 `WriteByte(SCCB_DEV_ADDR_R)` 返回 false → NACK_RADDR |
 
 > **关键点**：SDA 拉死会伪装成"假 ACK"，仅靠 ACK 位无法与"正常"区分。可靠判据是事务开始前的空闲检测（开漏 + 上拉总线空闲时必须为高）。该检测成本极低（一次读 pin），且与 NACK 正交。
 
@@ -91,8 +91,10 @@ SCCB_ReadStatusTypeDef SCCB_ReadRegEx(uint8_t reg_addr, uint8_t *data);
 
 `Core/Src/bsp/ov7670_sccb.c` 实现要点：
 
+> **2026-08-08 更新**：生产与测试读接口均已从 I2C 风格 RESTART 改为 SCCB 标准两阶段读（写阶段 `GenStop()` + 总线空闲 + 读阶段 `GenStart()`）。SCCB 协议不支持 repeated start，实测新摄像头在 RESTART 后 NACK 读地址；改为两阶段读后读操作全部正常。时序常量也已放缓（`SCCB_T_LOW_CYC` 100→200、`SCCB_T_HIGH_CYC` 50→100，时钟 ~212 kHz）。
+
 ```c
-/* ---- Production API (unchanged) ---- */
+/* ---- Production API ---- */
 uint8_t SCCB_ReadReg(uint8_t reg_addr)
 {
   uint8_t data = 0u;
@@ -100,7 +102,8 @@ uint8_t SCCB_ReadReg(uint8_t reg_addr)
   GenStart();
   if (!WriteByte(SCCB_DEV_ADDR_W)) goto cleanup;
   if (!WriteByte(reg_addr))        goto cleanup;
-  GenStart();  /* RESTART */
+  GenStop();
+  GenStart();  /* STOP + START (SCCB spec: no RESTART) */
   if (!WriteByte(SCCB_DEV_ADDR_R)) goto cleanup;
   data = ReadByte(false);  /* NACK = last byte */
 
@@ -131,7 +134,8 @@ SCCB_ReadStatusTypeDef SCCB_ReadRegEx(uint8_t reg_addr, uint8_t *data)
     status = SCCB_READ_NACK_REG;
     goto cleanup;
   }
-  GenStart();  /* RESTART */
+  GenStop();
+  GenStart();  /* STOP + START (SCCB spec: no RESTART) */
   if (!WriteByte(SCCB_DEV_ADDR_R))
   {
     status = SCCB_READ_NACK_RADDR;
@@ -145,7 +149,7 @@ cleanup:
 }
 ```
 
-> 注意：`SCCB_ReadRegEx` 的 `*data` 仅在返回 `SCCB_READ_OK` 时有效。两个函数共享底层 `GenStart`/`WriteByte`/`ReadByte`，无逻辑重复。
+> 注意：`SCCB_ReadRegEx` 的 `*data` 仅在返回 `SCCB_READ_OK` 时有效。两个函数共享底层 `GenStart`/`WriteByte`/`ReadByte`，无逻辑重复。写阶段与读阶段之间由 `GenStop()` 末尾的 `t_HIGH` 延时与 `GenStart()` 开头的 `t_HIGH` 延时共同提供总线空闲时间（约 2.78 us，满足 t_BUF >= 1.3 us）。
 
 ### 2.4 身份寄存器地址宏
 
@@ -155,7 +159,7 @@ cleanup:
 /* OV7670 read-only identity registers */
 #define SCCB_REG_PID    0x0Au   /**< Product ID (expected 0x76)    */
 #define SCCB_REG_VER    0x0Bu   /**< Version ID (expected 0x73)    */
-#define SCCB_REG_MIDH   0x1Cu   /**< Manufacturer ID high (0x7A)   */
+#define SCCB_REG_MIDH   0x1Cu   /**< Manufacturer ID high (0x7F)   */
 #define SCCB_REG_MIDL   0x1Du   /**< Manufacturer ID low  (0xA2)   */
 ```
 
@@ -174,17 +178,17 @@ DWT_Init();     /* SCCB 时序依赖 DWT CYCCNT */
 SCCB_Init();    /* 总线置空闲高 */
 ```
 
-**不做** PWDN/RESET 脉冲：CubeMX 已把摄像头置于上电可通信状态。TEST_SCCB 验证的就是"上电后最小通路"，若强加上电时序反而混淆"总线坏"与"时序坏"的定位。
+> **2026-08-08 更新**：实测在 `SCCB_Init()` 前执行一次 OV7670 硬件上电脉冲（`PWDN_High → PWDN_Low → RESET_Low → RESET_High`，与 `OV7670_Init()` 内序列一致），确保摄像头处于确定的上电状态后再测总线，避免残留状态导致误判。此序列已确认无副作用且测试稳定通过。
 
 ### 3.3 测试用例
 
 | 用例 | 操作 | 断言 |
 |---|---|---|
-| `test_sccb_read_pid` | `ReadRegEx(SCCB_REG_PID)` | status==OK 且 data==0x76 |
-| `test_sccb_read_ver` | `ReadRegEx(SCCB_REG_VER)` | status==OK 且 data==0x73（严格相等） |
-| `test_sccb_read_midh` | `ReadRegEx(SCCB_REG_MIDH)` | status==OK 且 data==0x7A |
-| `test_sccb_read_midl` | `ReadRegEx(SCCB_REG_MIDL)` | status==OK 且 data==0xA2 |
-| `test_sccb_read_stability` | 连续读 PID 5 次 | 全部 status==OK 且 5 次值一致 |
+| `TestSccbReadPid` | `ReadRegEx(SCCB_REG_PID)` | status==OK 且 data==0x76 |
+| `TestSccbReadVer` | `ReadRegEx(SCCB_REG_VER)` | status==OK 且 data==0x73（严格相等） |
+| `TestSccbReadMidh` | `ReadRegEx(SCCB_REG_MIDH)` | status==OK 且 data==0x7F |
+| `TestSccbReadMidl` | `ReadRegEx(SCCB_REG_MIDL)` | status==OK 且 data==0xA2 |
+| `TestSccbReadStability` | 连续读 PID 5 次 | 全部 status==OK 且 5 次值一致 |
 
 > VER(0x0B) 严格断言 0x73：如果实际模块读到其他版本号导致误报，属可接受——记录到排查指引中，先跑一次看实际值。
 
@@ -352,7 +356,7 @@ cmake --preset Debug -DTEST_SCCB=OFF -DTEST_OV7670=OFF && cmake --build --preset
 | `BUS_BUSY` | SDA 在事务开始前为低（被拉死 / 总线忙） | 查 SDA 是否短路到 GND；查 SCL/SDA 接线是否接反；确认外部上拉存在 |
 | `NACK_ADDR` | 设备地址 0x42 无响应 | 查摄像头是否上电（PWDN=低）；查 SCL/SDA 是否断线；查 VCC/GND 供电是否到位 |
 | `NACK_REG` | 寄存器地址写阶段 NACK | 少见；多为芯片内部异常，重试或换芯片 |
-| `NACK_RADDR` | RESTART 读地址 NACK | 同上 |
+| `NACK_RADDR` | 读阶段（STOP+START 后）设备地址 NACK | 同上 |
 | `OK` 但 PID≠0x76 | 读到设备非 OV7670 或版本异常 | 核对模块型号；检查是 OV7670 还是 OV7675/OV7660 等衍生型号 |
 | `OK` 但 MID 异常 | PID 对、MID 错 | 多为接触不良 / 虚接，稳定性用例可复现；重新插拔模块 |
 | 稳定性用例失败 | 5 次读值不一致 | 接线虚接 / 总线毛刺 / 供电抖动，检查杜邦线接触与电源滤波 |

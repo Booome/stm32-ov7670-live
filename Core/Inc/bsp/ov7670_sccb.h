@@ -65,7 +65,7 @@ typedef enum
 
 #define SCCB_REG_PID    0x0Au   /**< Product ID (expected 0x76)    */
 #define SCCB_REG_VER    0x0Bu   /**< Version ID (expected 0x73)    */
-#define SCCB_REG_MIDH   0x1Cu   /**< Manufacturer ID high (0x7A)   */
+#define SCCB_REG_MIDH   0x1Cu   /**< Manufacturer ID high (0x7F)   */
 #define SCCB_REG_MIDL   0x1Du   /**< Manufacturer ID low  (0xA2)   */
 
 /* ---- Public API (production, unchanged) ---- */

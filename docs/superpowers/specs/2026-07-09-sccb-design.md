@@ -10,7 +10,7 @@ SCCB 模块是纯传输层，负责 GPIO bit-bang 的 SCCB/I2C 读写时序，�
 
 | 职责 | 不负责 |
 |------|--------|
-| START/STOP/RESTART 信号生成 | OV7670 寄存器配置表 |
+| START/STOP 信号生成（读操作写阶段 STOP + 读阶段重新 START） | OV7670 寄存器配置表 |
 | 字节级读写 + ACK 检查 | 寄存器含义和值 |
 | SCL/SDA 引脚初始电平设置 | 帧捕获、DMA |
 | 时序控制（DWT_DelayUs） | LCD、FIFO 操作 |
@@ -116,7 +116,7 @@ uint8_t SCCB_ReadReg(uint8_t reg_addr);
 7. DWT_DelayUs(1)          // hold time
 ```
 
-**RESTART 条件**：与 START 相同，不 preceded by STOP。
+**STOP + 总线空闲 + START**：SCCB 读操作不使用 RESTART，而是写阶段 STOP 后重新 START 读阶段（见 4.6）。STOP 与下一 START 之间由各阶段的 `t_HIGH` 延时共同提供总线空闲时间（约 2.78 us，满足 t_BUF >= 1.3 us）。
 
 ### 4.3 字节写入
 
@@ -174,11 +174,14 @@ STOP
 
 ### 4.6 读寄存器流程
 
+> **2026-08-08 更新**：读操作改为 SCCB 标准两阶段读。原设计使用 I2C 风格 RESTART（repeated start），但 SCCB 协议不支持 repeated start，实测 OV7670 在 RESTART 后 NACK 读地址 `0x43`。改为写阶段 STOP + 读阶段重新 START 后读取正常。时序常量亦从 t_LOW=100/t_HIGH=50 放缓至 t_LOW=200/t_HIGH=100（~212 kHz）。
+
 ```
 START
 -> 发送 0x42 (设备地址 + W) -> 检查 ACK
 -> 发送 reg_addr            -> 检查 ACK
-RESTART（与 START 相同，无前置 STOP）
+STOP                     （结束写阶段）
+（总线空闲后重新）START
 -> 发送 0x43 (设备地址 + R) -> 检查 ACK
 -> 读取 data (发 NACK)
 STOP

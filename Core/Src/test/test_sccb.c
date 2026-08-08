@@ -47,123 +47,36 @@ static uint8_t ReadRegChecked(uint8_t reg_addr)
 
 static void TestSccbReadPid(void)
 {
-  debug_printf("  Reading PID (0x%02X)...\n", SCCB_REG_PID);
-  uint8_t pid = ReadRegChecked(SCCB_REG_PID);
-  debug_printf("  PID = 0x%02X (expected 0x76)\n", pid);
-  TEST_ASSERT_EQUAL_UINT8(0x76u, pid);
+  TEST_ASSERT_EQUAL_UINT8(0x76u, ReadRegChecked(SCCB_REG_PID));
 }
 
 static void TestSccbReadVer(void)
 {
-  debug_printf("  Reading VER (0x%02X)...\n", SCCB_REG_VER);
-  uint8_t ver = ReadRegChecked(SCCB_REG_VER);
-  debug_printf("  VER = 0x%02X (expected 0x73)\n", ver);
-  TEST_ASSERT_EQUAL_UINT8(0x73u, ver);
+  TEST_ASSERT_EQUAL_UINT8(0x73u, ReadRegChecked(SCCB_REG_VER));
 }
 
 static void TestSccbReadMidh(void)
 {
-  debug_printf("  Reading MIDH (0x%02X)...\n", SCCB_REG_MIDH);
-  uint8_t midh = ReadRegChecked(SCCB_REG_MIDH);
-  debug_printf("  MIDH = 0x%02X (expected 0x7A)\n", midh);
-  TEST_ASSERT_EQUAL_UINT8(0x7Au, midh);
+  TEST_ASSERT_EQUAL_UINT8(0x7Fu, ReadRegChecked(SCCB_REG_MIDH));
 }
 
 static void TestSccbReadMidl(void)
 {
-  debug_printf("  Reading MIDL (0x%02X)...\n", SCCB_REG_MIDL);
-  uint8_t midl = ReadRegChecked(SCCB_REG_MIDL);
-  debug_printf("  MIDL = 0x%02X (expected 0xA2)\n", midl);
-  TEST_ASSERT_EQUAL_UINT8(0xA2u, midl);
+  TEST_ASSERT_EQUAL_UINT8(0xA2u, ReadRegChecked(SCCB_REG_MIDL));
 }
 
 static void TestSccbReadStability(void)
 {
-  debug_printf("  Reading PID 5 times for stability...\n");
   uint8_t values[5];
-  for (int i = 0; i < 5; i++)
+  for (uint8_t i = 0u; i < 5u; i++)
   {
     values[i] = ReadRegChecked(SCCB_REG_PID);
     DWT_DelayMs(10u);
-    debug_printf("    Read %d: 0x%02X\n", i, values[i]);
   }
-  for (int i = 1; i < 5; i++)
+  for (uint8_t i = 1u; i < 5u; i++)
   {
     TEST_ASSERT_EQUAL_UINT8(values[0], values[i]);
   }
-}
-
-/* ---- Diagnostic: scan all possible I2C/SCCB addresses ---- */
-
-/* Must include low-level SCCB internals for direct WriteByte access.
-   Since WriteByte is static in ov7670_sccb.c, we duplicate the
-   minimal bit-bang logic here for diagnostic purposes only. */
-
-#include "dwt_delay.h"
-
-#define DIAG_SCL_High()  HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_SET)
-#define DIAG_SCL_Low()   HAL_GPIO_WritePin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin, GPIO_PIN_RESET)
-#define DIAG_SDA_High()  HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_SET)
-#define DIAG_SDA_Low()   HAL_GPIO_WritePin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin, GPIO_PIN_RESET)
-#define DIAG_SDA_Read()  HAL_GPIO_ReadPin(OV7670_SDA_GPIO_Port, OV7670_SDA_Pin)
-
-#define DIAG_T_LOW   100u
-#define DIAG_T_HIGH   50u
-
-static bool DiagWriteByte(uint8_t byte)
-{
-  for (uint8_t i = 0u; i < 8u; i++)
-  {
-    if ((byte & 0x80u) != 0u) { DIAG_SDA_High(); }
-    else                      { DIAG_SDA_Low(); }
-    DWT_DelayCycles(DIAG_T_LOW);
-    DIAG_SCL_High();
-    DWT_DelayCycles(DIAG_T_HIGH);
-    DIAG_SCL_Low();
-    byte <<= 1;
-  }
-  DIAG_SDA_High();
-  DWT_DelayCycles(DIAG_T_LOW);
-  DIAG_SCL_High();
-  DWT_DelayCycles(DIAG_T_HIGH);
-  GPIO_PinState ack = DIAG_SDA_Read();
-  DIAG_SCL_Low();
-  return (ack == GPIO_PIN_RESET);
-}
-
-static void DiagStart(void)
-{
-  DIAG_SDA_High();
-  DIAG_SCL_High();
-  DWT_DelayCycles(DIAG_T_HIGH);
-  DIAG_SDA_Low();
-  DWT_DelayCycles(DIAG_T_HIGH);
-  DIAG_SCL_Low();
-}
-
-static void DiagStop(void)
-{
-  DIAG_SDA_Low();
-  DIAG_SCL_Low();
-  DWT_DelayCycles(DIAG_T_LOW);
-  DIAG_SCL_High();
-  DWT_DelayCycles(DIAG_T_HIGH);
-  DIAG_SDA_High();
-  DWT_DelayCycles(DIAG_T_HIGH);
-}
-
-static void TestSccbAddrScan(void)
-{
-  /* OV7670 SCCB device address (8-bit write form, confirmed from all reference designs) */
-  const uint8_t addr = 0x42u;
-
-  debug_printf("  Probing SCCB address 0x%02X...\n", addr);
-  DiagStart();
-  bool ack = DiagWriteByte(addr);
-  DiagStop();
-  debug_printf("    0x%02X -> %s\n", addr, ack ? "ACK" : "NACK");
-  /* This test always passes; it's diagnostic only */
-  TEST_PASS();
 }
 
 /* ---- Diagnostic: verify GPIO can drive SCL/SDA low ---- */
@@ -172,37 +85,29 @@ static void TestGpioDriveSclSda(void)
 {
   GPIO_PinState rd;
 
-  debug_printf("  Verifying GPIO drive on SCL (PB10) and SDA (PB11)...\n");
-
-  /* -- SCL test (read via HAL even though pin is output) -- */
+  /* SCL test (read via HAL even though pin is output) */
   SCCB_SCL_High();
   DWT_DelayMs(1u);
   rd = HAL_GPIO_ReadPin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin);
-  debug_printf("    SCL idle high: %s\n", (rd == GPIO_PIN_SET) ? "OK" : "FAIL");
   TEST_ASSERT_EQUAL(GPIO_PIN_SET, rd);
 
   SCCB_SCL_Low();
   DWT_DelayMs(1u);
   rd = HAL_GPIO_ReadPin(OV7670_SCL_GPIO_Port, OV7670_SCL_Pin);
-  debug_printf("    SCL driven low: %s (read=%d)\n",
-               (rd == GPIO_PIN_RESET) ? "OK" : "FAIL", rd);
   TEST_ASSERT_EQUAL(GPIO_PIN_RESET, rd);
 
   SCCB_SCL_High();
   DWT_DelayMs(1u);
 
-  /* -- SDA test -- */
+  /* SDA test */
   SCCB_SDA_High();
   DWT_DelayMs(1u);
   rd = SCCB_SDA_Read();
-  debug_printf("    SDA idle high: %s\n", (rd == GPIO_PIN_SET) ? "OK" : "FAIL");
   TEST_ASSERT_EQUAL(GPIO_PIN_SET, rd);
 
   SCCB_SDA_Low();
   DWT_DelayMs(1u);
   rd = SCCB_SDA_Read();
-  debug_printf("    SDA driven low: %s (read=%d)\n",
-               (rd == GPIO_PIN_RESET) ? "OK" : "FAIL", rd);
   TEST_ASSERT_EQUAL(GPIO_PIN_RESET, rd);
 
   SCCB_SDA_High();
@@ -218,7 +123,9 @@ void RunSccbTests(void)
   /* Initialize DWT (SCCB timing depends on CYCCNT) */
   DWT_Init();
 
-  /* OV7670 hardware power-up reset sequence */
+  /* OV7670 hardware power-up reset sequence (same as OV7670_Init) */
+  OV7670_PWDN_High();
+  DWT_DelayMs(1u);
   OV7670_PWDN_Low();
   DWT_DelayMs(1u);
   OV7670_RESET_Low();
@@ -233,7 +140,6 @@ void RunSccbTests(void)
   debug_printf("[TEST_SCCB] SCCB bus & wiring verification\n");
 
   RUN_TEST(TestGpioDriveSclSda);
-  RUN_TEST(TestSccbAddrScan);
 
   RUN_TEST(TestSccbReadPid);
   RUN_TEST(TestSccbReadVer);
