@@ -23,6 +23,7 @@ _Static_assert(PIPELINE_VSYNC_DELAY_US > 1110u,
 static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_DISABLED;
 static volatile uint32_t s_bytes_sent;
 static volatile bool s_spi_dma_busy;
+static volatile uint32_t s_frame_count;
 static DWT_DelayHandle s_vsync_delay;
 
 /* Frame buffer: 640 bytes, 2 x 320B ping-pong */
@@ -94,6 +95,8 @@ static void FrameDone(void)
   LCD_CS_High();
   OV7670_FIFO_WR_Low();
 
+  s_frame_count++;
+
   s_state = PIPELINE_STATE_IDLE;
 }
 
@@ -102,11 +105,17 @@ void Pipeline_Init(void)
   s_state = PIPELINE_STATE_IDLE;
   s_bytes_sent = 0u;
   s_spi_dma_busy = false;
+  s_frame_count = 0u;
 }
 
 Pipeline_StateTypeDef Pipeline_GetState(void)
 {
   return s_state;
+}
+
+uint32_t Pipeline_GetFrameCount(void)
+{
+  return s_frame_count;
 }
 
 void Pipeline_Poll(void)

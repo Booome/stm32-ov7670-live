@@ -77,6 +77,9 @@ void                  Pipeline_Init(void);
 /** @brief  Get current state */
 Pipeline_StateTypeDef Pipeline_GetState(void);
 
+/** @brief  Get total frames captured since Pipeline_Init */
+uint32_t Pipeline_GetFrameCount(void);
+
 /** @brief  Poll for non-blocking delay completion (call from main loop) */
 void                  Pipeline_Poll(void);
 
