@@ -63,25 +63,51 @@ Pipeline_EnableVsyncIrq()
 初始化后进入无限循环：
 
 ```
+uint32_t last_tick = HAL_GetTick();
+bool print_pending = false;
+uint8_t last_fps = 0;
+
 for (;;) {
   Pipeline_Poll();
-  // 每 1 秒：读取 Pipeline_GetFrameCount()，计算差值 = FPS，
-  // 打印 "[TEST_PIPELINE] fps=N state=X frames=NNNN"
+
+  /* 1-second FPS window (SysTick based) */
+  if (HAL_GetTick() - last_tick >= 1000u) {
+    uint32_t frames_now = Pipeline_GetFrameCount();
+    last_fps = (uint8_t)(frames_now - last_frames);
+    last_frames = frames_now;
+    print_pending = true;
+    last_tick = HAL_GetTick();
+  }
+
+  /* Deferred print: only when pipeline is IDLE (no timing impact) */
+  if (print_pending && Pipeline_GetState() == PIPELINE_STATE_IDLE) {
+    debug_printf("[TEST_PIPELINE] fps=%u state=IDLE frames=%lu\n",
+                 last_fps, (unsigned long)Pipeline_GetFrameCount());
+    print_pending = false;
+  }
 }
 ```
 
-- 帧计数差值即本秒内完成的帧数，即 FPS。
-- `state` 打印 `Pipeline_GetState()` 枚举值，辅助诊断（IDLE=1, FRAME_START=2, CAPTURING=3, DONE=4）。
+- 帧计数差值即本 1 秒窗口内完成的帧数，即 FPS。
+- **打印时序规避**：`debug_printf` 是阻塞式 UART（115200 baud，每行约 3.5ms），
+  若在 `FRAME_START` 状态打印会延迟 `ReadStart()` 导致该帧错位。
+  因此 FPS 只统计、不立即打印；置 `print_pending` 标志，待 `Pipeline_GetState()`
+  回到 `IDLE`（`Poll()` 刚处理完一帧的间隙）才实际输出，保证对 DMA 时序零阻塞。
+- 计时用 SysTick `HAL_GetTick()`（1ms 分辨率），不用 DWT 非阻塞延时
+  （`DWT_DelayStart` 的 `UsToTicks` 对 1,000,000us 会饱和在 ~59ms）。
 - 彩条目视 + FPS 稳定（≈30）即 PASS；FPS 持续为 0 说明链路未打通。
 
 ### 3.3 串口输出格式
 
 ```
 [TEST_PIPELINE] OV7670 colorbar -> LCD live pipeline test
-[TEST_PIPELINE] fps=29 state=1 frames=2350
-[TEST_PIPELINE] fps=30 state=1 frames=2380
+[TEST_PIPELINE] fps=29 state=IDLE frames=2350
+[TEST_PIPELINE] fps=30 state=IDLE frames=2380
 ...
 ```
+
+- 打印固定发生在 `state=IDLE` 时刻（非阻塞打印策略保证）。
+- 仅在 `DEBUG` 宏定义时输出（`debug_printf`），Release 构建无此开销。
 
 ## 4. 文件变更清单
 
@@ -115,7 +141,9 @@ for (;;) {
 
 ## 8. 不做的事（明确排除）
 
-- 不修改 pipeline 的状态机/时序逻辑（只加计数器）。
+- 不修改 pipeline 的状态机/时序逻辑（只加帧计数器 `s_frame_count`）。
 - 不引入 Unity/断言（纯观测测试）。
 - 不做彩条/实况自动切换（保持彩条持续显示）。
 - 不逐像素回读校验（DMA 直通链路无回读路径）。
+- 不在 `FRAME_START`/`FRAME_DONE` 等非 IDLE 状态下执行阻塞打印
+  （FPS 打印延迟到 IDLE 窗口，避免破坏 1.3ms 读时序）。
