@@ -96,10 +96,10 @@ static inline void OV7670_FIFO_WR_Low(void)
   */
 bool    OV7670_Init(void);
 
-/** @brief  Enable color bar test pattern (COM3 bit0 = 1) */
+/** @brief  Enable 8-bar color bar test pattern (COM7 bit1 + COM17 bit3 + XSC7) */
 void    OV7670_EnableColorBar(void);
 
-/** @brief  Disable color bar test pattern (COM3 bit0 = 0) */
+/** @brief  Disable color bar test pattern (restore COM7/COM17/XSC/YSC defaults) */
 void    OV7670_DisableColorBar(void);
 
 #endif /* OV7670_H */

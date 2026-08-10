@@ -194,7 +194,7 @@ void RunPipelineTests(void)
   debug_printf("[TEST_PIPELINE] OV7670 colorbar -> LCD live pipeline test\n");
 
   OV7670_EnableColorBar();
-  debug_printf("[TEST_PIPELINE] colorbar enabled (COM3 bit0)\n");
+  debug_printf("[TEST_PIPELINE] colorbar enabled (COM7 bit1, 8-bar)\n");
 
   LCD_Init();
   debug_printf("[TEST_PIPELINE] LCD init OK\n");
@@ -298,7 +298,7 @@ python3 /tmp/opencode/serial_capture.py
 Expected:
 ```
 [TEST_PIPELINE] OV7670 colorbar -> LCD live pipeline test
-[TEST_PIPELINE] colorbar enabled (COM3 bit0)
+[TEST_PIPELINE] colorbar enabled (COM7 bit1, 8-bar)
 [TEST_PIPELINE] LCD init OK
 [TEST_PIPELINE] VSYNC IRQ enabled, streaming...
 [TEST_PIPELINE] fps=30 state=IDLE frames=...

@@ -20,6 +20,9 @@
 #ifdef TEST_OV7670
 #include "test_ov7670.h"
 #endif
+#ifdef TEST_OV7670_COLORBAR
+#include "test_ov7670_colorbar.h"
+#endif
 #ifdef TEST_LCD
 #include "test_lcd.h"
 #endif
@@ -62,6 +65,9 @@ void TestRunner_Run(void)
 #endif
 #ifdef TEST_OV7670
   RunOv7670Tests();
+#endif
+#ifdef TEST_OV7670_COLORBAR
+  RunOv7670ColorbarTests();
 #endif
 #ifdef TEST_LCD
   RunLcdTests();

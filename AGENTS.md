@@ -9,6 +9,14 @@
 - Architecture: Dual-DMA ping-pong pipeline (Camera DMA Circular + SPI DMA Normal), zero-copy within frame
 - Toolchain: C11, STM32 HAL, CMake + arm-none-eabi-gcc, CubeMX generated
 
+## Hardware Facts (OV7670 FIFO module)
+
+- FIFO write enable is HREF-gated on the module: `/WE = NAND(HREF, FIFO_WR)` (SN74LVC1G00).
+  PCLK only reaches the AL422B WCLK while HREF is high, so **only active pixels are stored**.
+- Consequence: each stored row is exactly `width*2` bytes (320B for 160x128 RGB565) with no
+  blanking padding. FIFO row boundaries align to 320B; software must NOT filter HREF blanks.
+- Frame = 128 rows x 320B = 40960B < AL422B capacity 393216B, no overflow.
+
 ## Build & Verify
 
 - Build: `cmake --preset Debug && cmake --build --preset Debug`
@@ -116,6 +124,12 @@ Implement a non-weak `__io_putchar()` that calls `HAL_UART_Transmit()` to USART1
 
 - `DEBUG` macro is auto-defined by CMake Debug build
 - Do NOT use `debug_printf` in interrupt context (blocking UART)
+- **Do NOT use `debug_printf` in timing-sensitive regions** (between signal
+  assertions, inside VSYNC/HREF polling loops, between WR_High and WR_Low,
+  etc.). UART is blocking: at 115200 baud, one character takes ~87us, a
+  40-char line takes ~3.5ms -- enough to miss a VSYNC edge or skew a write
+  window. Record data to variables inside the sensitive region, print after
+  exiting it (e.g., after `WR_Low`).
 - newlib-nano does not support `%f` float formatting by default
 
 ## Language Preferences

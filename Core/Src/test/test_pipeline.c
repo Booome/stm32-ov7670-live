@@ -2,10 +2,21 @@
   * @file    test_pipeline.c
   * @brief   TEST_PIPELINE group - OV7670 colorbar -> LCD live pipeline
   *
-  *          Enables OV7670 colorbar test pattern as a deterministic video
-  *          source and runs the full VSYNC->FIFO->Camera DMA->SPI DMA->LCD
-  *          pipeline. Prints FPS once per second, deferred to the pipeline
-  *          IDLE window so the blocking UART never delays frame read start.
+  *          Enables the OV7670 test pattern as a deterministic video source
+  *          and runs the full VSYNC->FIFO->Camera DMA->SPI DMA->LCD pipeline.
+  *          Prints FPS once per second, deferred to the pipeline IDLE window
+  *          so the blocking UART never delays frame read start.
+  *
+  *          Known facts (verified in TEST_OV7670_COLORBAR):
+  *          - Sensor scaling 160x128 is effective: frame = 40960B < 48KB FIFO.
+  *          - The test pattern on this chip is a walking-one rolling pattern,
+  *            NOT the standard 8 vertical bars (rows differ per frame).
+  *          - QVGA (150KB/frame) cannot fit the 48KB FIFO - never use QVGA
+  *            mode in the pipeline.
+ *          - Avg write 1.23MB/s < read 1.44MB/s; read starts 6ms after
+ *            VSYNC (write lead 7.4KB) so the read never overtakes.
+ *          - Frame period 34.8ms, read completes at 6+28.4 = 34.4ms inside
+ *            the frame period -> every VSYNC starts a new read (~28.7 fps).
   *
   *          No Unity dependency: pure visual + serial observation test.
   */
@@ -19,6 +30,8 @@
 #include "main.h"
 
 #define TEST_PIPELINE_FPS_WINDOW_MS  1000u
+#define TEST_PIPELINE_FRAME_BYTES    (160u * 128u * 2u)   /* 40960B RGB565 */
+#define TEST_PIPELINE_FIFO_BYTES     49152u               /* AL422B 48KB */
 
 void RunPipelineTests(void)
 {
@@ -32,7 +45,10 @@ void RunPipelineTests(void)
   debug_printf("[TEST_PIPELINE] OV7670 colorbar -> LCD live pipeline test\n");
 
   OV7670_EnableColorBar();
-  debug_printf("[TEST_PIPELINE] colorbar enabled (COM3 bit0)\n");
+  debug_printf("[TEST_PIPELINE] colorbar enabled (walking-one pattern, not 8-bar)\n");
+
+  debug_printf("[TEST_PIPELINE] res=160x128 frame=%uB fifo=%uB (fits)\n",
+               TEST_PIPELINE_FRAME_BYTES, TEST_PIPELINE_FIFO_BYTES);
 
   LCD_Init();
   debug_printf("[TEST_PIPELINE] LCD init OK\n");
@@ -65,7 +81,7 @@ void RunPipelineTests(void)
     /* Deferred print: only when pipeline is IDLE (no timing impact) */
     if (print_pending && Pipeline_GetState() == PIPELINE_STATE_IDLE)
     {
-      debug_printf("[TEST_PIPELINE] fps=%u state=IDLE frames=%lu\n",
+      debug_printf("[TEST_PIPELINE] fps=%u (max~28.7) state=IDLE frames=%lu\n",
                    last_fps, (unsigned long)Pipeline_GetFrameCount());
       print_pending = false;
     }

@@ -35,6 +35,7 @@
 #define OV7670_REG_EDGE          0x3Fu
 #define OV7670_REG_COM15         0x40u
 #define OV7670_REG_COM16         0x41u
+#define OV7670_REG_COM17         0x42u
 
 /* ---- Window / timing ---- */
 #define OV7670_REG_HSTART        0x17u
@@ -82,7 +83,7 @@
 #define OV7670_REG_SCALING_PCLK_DELAY 0xA2u
 
 /* ---- Gamma curve ---- */
-#define OV7670_REG_GAM0          0x7Au
+#define OV7670_REG_SLOP          0x7Au
 #define OV7670_REG_GAM1          0x7Bu
 #define OV7670_REG_GAM2          0x7Cu
 #define OV7670_REG_GAM3          0x7Du
@@ -137,7 +138,7 @@
 #define OV7670_REG_NT_CTRL       0xA4u
 
 /* ---- Lens correction ---- */
-#define OV7670_REG_LCC1          0x92u
+#define OV7670_REG_DM_LNL          0x92u
 
 /* ---- Multiplexor sequence ---- */
 #define OV7670_REG_MUX_SEL       0x79u
@@ -166,8 +167,8 @@
 #define OV7670_REG_MAGIC_9A      0x9Au
 #define OV7670_REG_MAGIC_9B      0x9Bu
 #define OV7670_REG_MAGIC_9C      0x9Cu
-#define OV7670_REG_MAGIC_9D      0x9Du
-#define OV7670_REG_MAGIC_9E      0x9Eu
+#define OV7670_REG_BD50ST      0x9Du
+#define OV7670_REG_BD60ST      0x9Eu
 #define OV7670_REG_MAGIC_A1      0xA1u
 #define OV7670_REG_MAGIC_B0      0xB0u
 #define OV7670_REG_MAGIC_B1      0xB1u
@@ -175,9 +176,20 @@
 #define OV7670_REG_MAGIC_B3      0xB3u
 #define OV7670_REG_MAGIC_B8      0xB8u
 
-/* COM3 bit0 = color bar test mode */
-#define OV7670_COM3_COLOR_BAR    0x01u
-#define OV7670_COM3_DEFAULT      0x0Cu
+/* COM7 bit1 = color bar test mode */
+#define OV7670_COM7_COLOR_BAR    0x02u
+#define OV7670_COM7_DEFAULT      0x14u
+
+/* COM17 bit3 = DSP color bar enable */
+#define OV7670_COM17_DSP_COLOR_BAR  0x08u
+#define OV7670_COM17_DEFAULT        0x00u
+
+/* SCALING_XSC bit7 = test_pattern[0], SCALING_YSC bit7 = test_pattern[1].
+ * test_pattern (XSC7,YSC7) = 11: 8-bar color bar (verified on hardware) */
+#define OV7670_XSC_TEST_PATTERN   0x80u
+#define OV7670_YSC_TEST_PATTERN   0x80u
+#define OV7670_YSC_DEFAULT        0x3Cu
+#define OV7670_XSC_DEFAULT        0x40u
 
 /**
   * @brief   Register configuration table for 160x128 RGB565
@@ -214,17 +226,17 @@ static const struct
   { OV7670_REG_VREF,   0x0Au },
 
   /* ---- Scaling (160x128 via DCW + Digital Zoom) ---- */
-  { OV7670_REG_SCALING_DCWCTR,     0x11u }, /* DCWCTR: V/H by2                */
+  { OV7670_REG_SCALING_DCWCTR,     0x11u }, /* DCWCTR: H by2 (default)        */
   { OV7670_REG_SCALING_XSC,        0x40u }, /* XSC: horizontal 0.5x (320->160)*/
   { OV7670_REG_SCALING_YSC,        0x3Cu }, /* YSC: vertical 0.533x (240->128)*/
-  { OV7670_REG_SCALING_PCLK_DIV,   0xF1u }, /* PCLK_DIV: /2 (match DCW by2)  */
+  { OV7670_REG_SCALING_PCLK_DIV,   0xF1u }, /* PCLK_DIV: ref bayernfan         */
   { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                      */
 
   /* ---- COM10: VSYNC/HREF/PCLK timing ---- */
   { OV7670_REG_COM10, 0x00u },
 
-  /* ---- Gamma curve (0x7A-0x89) ---- */
-  { OV7670_REG_GAM0,  0x20u },
+  /* ---- Gamma curve: SLOP(0x7A) + GAM1–GAM15(0x7B–0x89) ---- */
+  { OV7670_REG_SLOP,  0x20u },
   { OV7670_REG_GAM1,  0x10u },
   { OV7670_REG_GAM2,  0x1Eu },
   { OV7670_REG_GAM3,  0x35u },
@@ -290,7 +302,7 @@ static const struct
   { OV7670_REG_MAGIC_8F, 0x00u },
   { OV7670_REG_MAGIC_90, 0x00u },
   { OV7670_REG_MAGIC_91, 0x00u },
-  { OV7670_REG_LCC1,     0x19u },
+  { OV7670_REG_DM_LNL, 0x19u },
   { OV7670_REG_MAGIC_B0, 0x84u },
   { OV7670_REG_MAGIC_B1, 0x0Cu },
   { OV7670_REG_MAGIC_B2, 0x0Eu },
@@ -355,8 +367,8 @@ static const struct
   { OV7670_REG_MAGIC_9A, 0x84u },
   { OV7670_REG_MAGIC_9B, 0x29u },
   { OV7670_REG_MAGIC_9C, 0x03u },
-  { OV7670_REG_MAGIC_9D, 0x4Cu },
-  { OV7670_REG_MAGIC_9E, 0x3Fu },
+  { OV7670_REG_BD50ST, 0x4Cu },
+  { OV7670_REG_BD60ST, 0x3Fu },
   { OV7670_REG_MAGIC_78, 0x04u },
 
   /* ---- Trigger sequence (MUX_SEL / MUX_DAT pairs, OV chip init) ---- */
@@ -417,10 +429,21 @@ bool OV7670_Init(void)
 
 void OV7670_EnableColorBar(void)
 {
-  SCCB_WriteReg(OV7670_REG_COM3, OV7670_COM3_DEFAULT | OV7670_COM3_COLOR_BAR);
+  /* COM7 bit1: color bar enable */
+  SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT | OV7670_COM7_COLOR_BAR);
+
+  /* COM17 bit3: DSP color bar enable */
+  SCCB_WriteReg(OV7670_REG_COM17, OV7670_COM17_DEFAULT | OV7670_COM17_DSP_COLOR_BAR);
+
+  /* test_pattern = "10" (8-bar): XSC bit7 = 1, YSC bit7 = 0 */
+  SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT | OV7670_XSC_TEST_PATTERN);
+  SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
 }
 
 void OV7670_DisableColorBar(void)
 {
-  SCCB_WriteReg(OV7670_REG_COM3, OV7670_COM3_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_COM17, OV7670_COM17_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
 }

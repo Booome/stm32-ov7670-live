@@ -14,15 +14,21 @@ extern TIM_HandleTypeDef htim3;
 extern SPI_HandleTypeDef hspi2;
 extern DMA_HandleTypeDef hdma_tim3_ch4_up;
 
-/* VSYNC delay: 1.3ms (back porch 1.11ms + 190us safety margin) */
-#define PIPELINE_VSYNC_DELAY_US  1300u
-_Static_assert(PIPELINE_VSYNC_DELAY_US > 1110u,
-              "VSYNC delay must exceed OV7670 back porch (1.11ms @ 12MHz)");
+/* VSYNC delay: 6ms.  Avg write rate is 1.23MB/s (320B/260us row), read rate
+ * is 1.44MB/s.  Delaying read start by 6ms gives the write pointer a lead of
+ * 6ms * 1.23MB/s = 7.4KB, which the read (0.21MB/s faster) cannot close within
+ * the 28.4ms frame read (needs ~35ms), so the read never overtakes the write.
+ * Read completes at 6+28.4 = 34.4ms, just inside the 34.8ms frame period, so
+ * every VSYNC can start a fresh frame read (no dropped frames -> ~28.7fps).
+ * Bounds: delay must be > 4.86ms (write lead must survive the whole frame
+ * read) and <= 6.36ms (read must finish within one frame period). */
+#define PIPELINE_VSYNC_DELAY_US  6000u
 
 /* Module state */
 static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_DISABLED;
 static volatile uint32_t s_bytes_sent;
 static volatile bool s_spi_dma_busy;
+static volatile bool s_abort_pending;
 static volatile uint32_t s_frame_count;
 static DWT_DelayHandle s_vsync_delay;
 
@@ -41,6 +47,17 @@ static void DmaCpltCb(DMA_HandleTypeDef *hdma);
   */
 static void ReadStart(void)
 {
+  /* Guard: if the previous frame's DMA/PWM is still running because VSYNC
+   * preempted FrameDone, stop it before starting the new frame. */
+  if (s_abort_pending)
+  {
+    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
+    HAL_DMA_Abort(&hdma_tim3_ch4_up);
+    OV7670_FIFO_OE_High();
+    LCD_CS_High();
+    s_abort_pending = false;
+  }
+
   /* Reset FIFO read pointer */
   OV7670_FIFO_RRST_Low();
   OV7670_FIFO_RRST_High();
@@ -135,19 +152,19 @@ void Pipeline_Poll(void)
 
 static void OnVsync(void)
 {
-  if (s_state != PIPELINE_STATE_IDLE)
-  {
-    return;  /* Drop frame if busy */
-  }
-
-  s_state = PIPELINE_STATE_FRAME_START;
-
-  /* Reset FIFO write pointer */
+  /* Always reset FIFO write pointer and enable write on every VSYNC. */
   OV7670_FIFO_WRST_Low();
   OV7670_FIFO_WRST_High();
-
-  /* Enable FIFO write (NAND gate with HREF) */
   OV7670_FIFO_WR_High();
+
+  /* Flag if the previous frame's read was left running (state != IDLE), so
+   * ReadStart cleans up its DMA/PWM before starting this frame. */
+  s_abort_pending = (s_state != PIPELINE_STATE_IDLE);
+
+  /* Unconditionally start a new frame read: no IDLE-state gating, so no
+   * frames are dropped.  In normal timing the read finishes inside the frame
+   * period (see PIPELINE_VSYNC_DELAY_US) and state is already IDLE here. */
+  s_state = PIPELINE_STATE_FRAME_START;
 
   /* Start non-blocking delay */
   DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
