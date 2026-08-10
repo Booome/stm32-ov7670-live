@@ -93,6 +93,30 @@ def env_default(name, fallback):
     return val if val else fallback
 
 
+def flush_serial_input(ser, quiet_s=0.4, max_s=2.0):
+    """Drain the serial input until it stays empty for `quiet_s`.
+
+    A single `reset_input_buffer()` (tcflush TCIFLUSH) only clears the tty
+    layer.  On a CDC-ACM VCP the bytes the MCU emitted while openocd's
+    `init` was still bringing the target up can be stuck deeper in the USB
+    stack, so one flush is not enough: keep draining until no new bytes
+    arrive for `quiet_s` (the MCU is halted, so silence proves the pipe is
+    truly empty).
+    """
+    deadline = time.time() + max_s
+    last_rx = time.time()
+    while time.time() < deadline:
+        n = ser.in_waiting
+        if n:
+            ser.read(n)
+            last_rx = time.time()
+        elif time.time() - last_rx >= quiet_s:
+            break
+        else:
+            time.sleep(0.02)
+    ser.reset_input_buffer()
+
+
 def send_openocd_command(command):
     """Send a command to openocd's telnet console and return its output."""
     with socket.create_connection(('127.0.0.1', TELNET_PORT), timeout=3.0) as s:
@@ -176,7 +200,7 @@ def main():
         print(f'[hold] MCU halted, opening {port} @ {baud}...',
               file=sys.stderr)
         ser = serial.Serial(port, baud, timeout=0.1)
-        ser.reset_input_buffer()
+        flush_serial_input(ser)
 
         print('[release] issuing reset run...', file=sys.stderr)
         send_openocd_command('reset run')
