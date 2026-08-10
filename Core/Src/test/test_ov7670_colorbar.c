@@ -197,7 +197,7 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
 
   OV7670_FIFO_WR_Low();
   OV7670_FIFO_WRST_Low();
-  DWT_DelayUs(1u);   /* WRST: AL422B needs 7ns (setup 5ns + hold 2ns) */
+  DWT_DelayCycles(10u);
   OV7670_FIFO_WRST_High();
 
   uint32_t w_start = DWT_GetCycles();
@@ -237,6 +237,7 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   uint8_t *line_ref = s_share_buf;                /* row 0 reference */
   uint8_t *line_cur = s_share_buf + VF_ROW_BYTES; /* current row */
 
+  OV7670_FIFO_OE_High();
   ResetReadPointer();
   OV7670_FIFO_OE_Low();
 
@@ -462,6 +463,28 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
     }
   }
   debug_printf("  [%s] => %s\n", label, verdict ? "REAL 8-BAR" : "NOT 8-bar");
+
+  /* ---- Phase D: full-frame dump for host-side image reconstruction ----
+   * Re-read the whole frozen frame (128 rows x 320B) and stream each row
+   * as lowercase hex so a script can rebuild the 160x128 RGB565 picture.
+   * Line format: "R%03u:" + 640 hex chars (320B, MSB-first like raw). */
+  {
+    OV7670_FIFO_OE_High();
+    DWT_DelayMs(10u);
+    OV7670_FIFO_OE_Low();
+    ResetReadPointer();
+    debug_printf("  [%s] FRAME_START\n", label);
+    for (uint16_t y = 0u; y < VF_ROWS; y++)
+    {
+      debug_printf("R%03u:", (unsigned)y);
+      for (uint16_t i = 0u; i < VF_ROW_BYTES; i++)
+      {
+        debug_printf("%02x", (unsigned)ReadFifoByte());
+      }
+      debug_printf("\n");
+    }
+    debug_printf("  [%s] FRAME_END\n", label);
+  }
 
   OV7670_Init();
   DWT_DelayMs(200u);
