@@ -4,8 +4,8 @@
   *
   *          Same test logic as TEST_OV7670_COLORBAR but reads the AL422B FIFO
   *          via TIM3 DMA (RCK = TIM3 CH4 PWM at 1.44 MHz) instead of GPIO
-  *          bit-bang.  Log output is byte-identical so the same render script
-  *          (render_colorbar_charts.py) works without modification.
+  *          bit-bang.  Reads in 32-byte chunks: DMA normal mode + interrupt
+  *          callback stops TIM3 after exactly 32 RCK pulses.
   *
   *          Resolution: QQVGA 160x120 RGB565.
   */
@@ -21,9 +21,10 @@
 #include "main.h"
 #include <string.h>
 
-/* External handles (defined in main.c) */
 extern TIM_HandleTypeDef htim3;
 extern DMA_HandleTypeDef hdma_tim3_ch4_up;
+
+static volatile bool s_dma_done;
 
 _Static_assert(PIPELINE_WIDTH == LCD_TEST_WIDTH,
               "PIPELINE_WIDTH must equal LCD_TEST_WIDTH (160)");
@@ -32,7 +33,7 @@ _Static_assert(PIPELINE_HEIGHT == LCD_TEST_HEIGHT,
 _Static_assert(PIPELINE_HALF_SIZE == LCD_TEST_LINE_SIZE,
               "PIPELINE_HALF_SIZE must equal LCD_TEST_LINE_SIZE (320B/row)");
 
-/* ---- RCK pin mode switching (shared with GPIO bit-bang tests) ---- */
+/* ---- RCK pin mode switching ---- */
 
 static void FifoRck_EnterGpio(void)
 {
@@ -54,64 +55,62 @@ static void FifoRck_EnterAf(void)
   HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
 }
 
-/**
-  * @brief  Reset AL422B read pointer: RRST low + one RCK falling edge.
-  *
-  *         Temporarily switches RCK to GPIO to generate the pulse, then
-  *         restores RCK to AF (TIM3 CH4) for DMA operation.
-  */
 static void ResetReadPointer(void)
 {
-  FifoRck_EnterGpio();
+  /* Switch RCK to GPIO to generate one clean pulse for the reset.
+   * AL422B requires RCK falling edge while RRST is low. */
+  FifoRck_EnterGpio();   /* RCK starts LOW */
   OV7670_FIFO_RRST_Low();
+  DWT_DelayCycles(10u);  /* setup time */
   HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin,
-                    GPIO_PIN_SET);
+                    GPIO_PIN_SET);   /* RCK high */
+  DWT_DelayCycles(10u);
   HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin,
-                    GPIO_PIN_RESET);
+                    GPIO_PIN_RESET); /* RCK low (reset) */
+  DWT_DelayCycles(10u);  /* hold time */
   OV7670_FIFO_RRST_High();
-  FifoRck_EnterAf();
+  DWT_DelayCycles(10u);  /* recovery */
+  FifoRck_EnterAf();     /* restore RCK to TIM3 CH4 */
+}
+
+/* ---- DMA callback (ISR context) ---- */
+
+static void DmaXferCpltCb(DMA_HandleTypeDef *hdma)
+{
+  (void)hdma;
+  s_dma_done = true;
 }
 
 /**
-  * @brief  Read one chunk of bytes from FIFO via TIM3 DMA.
-  *
-  *         Starts TIM3 CH4 PWM (RCK clock), DMA reads GPIOA->IDR into buf,
-  *         waits for DMA complete, then stops TIM3.
-  *
-  * @param  buf   Destination buffer (must be >= len bytes)
-  * @param  len   Number of bytes to read (must be > 0)
+  * @brief  Read one chunk from FIFO via TIM3 DMA.
+  *         DMA in normal mode; ISR stops TIM3 after callback sets flag.
   */
 static void DmaReadChunk(uint8_t *buf, uint16_t len)
 {
-  /* Set DMA to normal mode (not circular) for single-chunk transfer */
   hdma_tim3_ch4_up.Init.Mode = DMA_NORMAL;
   HAL_DMA_Init(&hdma_tim3_ch4_up);
 
-  /* Enable TIM3 CC4 DMA request */
+  hdma_tim3_ch4_up.XferCpltCallback = DmaXferCpltCb;
+
   __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_CC4);
 
-  /* Start DMA: GPIOA->IDR -> buf, normal mode, len bytes */
-  HAL_DMA_Start(&hdma_tim3_ch4_up,
-                (uint32_t)OV7670_DATA_ADDR,
-                (uint32_t)buf,
-                (uint32_t)len);
+  s_dma_done = false;
+  HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
+                   (uint32_t)OV7670_DATA_ADDR,
+                   (uint32_t)buf,
+                   (uint32_t)len);
 
-  /* Start TIM3 CH4 PWM (generates RCK at 1.44 MHz) */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
-  /* Wait for DMA transfer to complete */
-  HAL_DMA_PollForTransfer(&hdma_tim3_ch4_up, HAL_DMA_FULL_TRANSFER,
-                          HAL_MAX_DELAY);
+  while (!s_dma_done) {}
 
-  /* Stop TIM3 */
-  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
+  __HAL_TIM_DISABLE(&htim3);
 
-  /* Restore DMA to circular mode for pipeline compatibility */
   hdma_tim3_ch4_up.Init.Mode = DMA_CIRCULAR;
   HAL_DMA_Init(&hdma_tim3_ch4_up);
 }
 
-/* ---- VSYNC edge detection (same as GPIO version) ---- */
+/* ---- VSYNC edge detection ---- */
 
 static bool WaitVsyncEdge(bool rising)
 {
@@ -128,37 +127,27 @@ static bool WaitVsyncEdge(bool rising)
   return false;
 }
 
-/* ---- Test: OV7670 init must succeed ---- */
+/* ---- Test ---- */
 
 static void TestColorbarDmaInit(void)
 {
   TEST_ASSERT_TRUE(OV7670_Init());
 }
 
-/* ---- Full-frame 8-bar verification via DMA ---- */
-
-#define VF_ROW_BYTES 320u   /* 160px * 2B */
+#define VF_ROW_BYTES 320u
 #define VF_ROWS      120u
 
-/**
-  * @brief  Full-frame colorbar verification using TIM3 DMA FIFO read.
-  *
-  *         Same logic as GPIO version: capture one frame to FIFO, then
-  *         read back via DMA and verify row structure + dump hex stream.
-  */
 static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
 {
   bool verdict = false;
   OV7670_Init();
 
-  /* Enable sensor colorbar */
-  SCCB_WriteReg(0x12u, 0x06u);  /* COM7: RGB565 + sensor colorbar */
-  SCCB_WriteReg(0x42u, 0x00u);  /* COM17: no DSP colorbar */
+  SCCB_WriteReg(0x12u, 0x06u);
+  SCCB_WriteReg(0x42u, 0x00u);
   SCCB_WriteReg(0x70u, xsc);
   SCCB_WriteReg(0x71u, ysc);
-  SCCB_WriteReg(0x13u, 0x80u);  /* COM8: disable AWB+AGC+AEC */
+  SCCB_WriteReg(0x13u, 0x80u);
 
-  /* Readback diagnostics */
   debug_printf("  [%s] readback COM7=0x%02X COM8=0x%02X COM17=0x%02X XSC=0x%02X YSC=0x%02X\n",
                label, SCCB_ReadReg(0x12u), SCCB_ReadReg(0x13u),
                SCCB_ReadReg(0x42u),
@@ -173,14 +162,12 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
 
   DWT_DelayMs(1000u);
 
-  /* Wait for VSYNC rising edge */
   if (!WaitVsyncEdge(true))
   {
     debug_printf("  [%s] VSYNC timeout (1st)\n", label);
     return false;
   }
 
-  /* Capture one frame to FIFO */
   OV7670_FIFO_WR_Low();
   OV7670_FIFO_WRST_Low();
   DWT_DelayCycles(10u);
@@ -195,7 +182,6 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   bool href_at_wr  = (idr0 & OV7670_HREF_Pin)  != 0;
   bool wr_at_wr    = (idr1 & OV7670_FIFO_WR_Pin) != 0;
 
-  /* Wait for NEXT VSYNC rising edge to close write window */
   if (!WaitVsyncEdge(true))
   {
     debug_printf("  [%s] VSYNC timeout (2nd)\n", label);
@@ -222,7 +208,7 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   OV7670_FIFO_OE_Low();
   ResetReadPointer();
 
-  /* Read row 0 via DMA (10 chunks of 32 bytes) */
+  /* Read row 0: 10 chunks of32 bytes */
   for (uint16_t c = 0u; c < VF_ROW_BYTES / 32u; c++)
   {
     DmaReadChunk(&line_ref[c * 32u], 32u);
@@ -246,7 +232,7 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
     }
   }
 
-  /* Re-read row 0 after 100ms to prove frozen */
+  /* Frozen check */
   OV7670_FIFO_OE_High();
   DWT_DelayMs(100u);
   OV7670_FIFO_OE_Low();
@@ -260,7 +246,6 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   OV7670_FIFO_OE_High();
   DWT_DelayMs(20u);
 
-  /* Row-matching report */
   if (first_diff == 0xFFu)
   {
     debug_printf("  [%s] rows_identical=%u/%u first_diff_row=none frozen_row0=%s\n",
@@ -302,7 +287,6 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   debug_printf("  [%s] row0 all8seg_uniform=%s\n",
                label, seg_all_uniform ? "yes" : "no");
 
-  /* Verdict */
   verdict = (identical_rows == VF_ROWS - 1u) &&
             frozen_row0 && seg_all_uniform;
   for (uint16_t s = 1u; s < 8u && verdict; s++)
@@ -347,15 +331,11 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
     }
     debug_printf("  [%s] FRAME_END\n", label);
 
-    /* Histogram summary */
     uint16_t top[4] = {0u, 0u, 0u, 0u};
     uint16_t topv[4] = {0u, 0u, 0u, 0u};
     for (uint16_t v = 0u; v < 256u; v++)
     {
-      if (cnt[v] == 0u)
-      {
-        continue;
-      }
+      if (cnt[v] == 0u) continue;
       uint16_t rank = 4u;
       while (rank > 0u && cnt[v] > top[rank - 1u])
       {
@@ -385,8 +365,6 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   return verdict;
 }
 
-/* ---- Test entry ---- */
-
 static void TestColorbarDmaFifoData(void)
 {
   const struct
@@ -413,18 +391,14 @@ static void TestColorbarDmaFifoData(void)
 void RunOv7670ColorbarDmaTests(void)
 {
   UNITY_BEGIN();
-
   DWT_Init();
   SCCB_Init();
   DWT_DelayMs(10u);
-
-  /* RCK stays in AF mode (TIM3 CH4) for DMA -- no GPIO switch needed */
 
   debug_printf("[TEST_OV7670_COLORBAR_DMA] OV7670 colorbar TIM3 DMA verification\n");
 
   RUN_TEST(TestColorbarDmaInit);
   DWT_DelayMs(10u);
-
   RUN_TEST(TestColorbarDmaFifoData);
 
   UNITY_END();
