@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render OV7670 colorbar capture into 8-band and 5-band color chart PNGs.
+"""Render OV7670 colorbar capture into color chart PNGs.
 
 Reads a serial capture log whose data lines look like:
     00000000: 30 40 01 04 30 40 01 04 ...   (32 bytes per line)
@@ -7,17 +7,14 @@ Each line holds 32 bytes of the raw frame byte stream, the 8-hex-digit
 prefix being the byte offset.  All lines between FRAME_START and
 FRAME_END are concatenated into one stream.
 
-Row model (established by prior experiments):
-  * The captured byte stream has a 317-byte period.  Pixel-row boundaries are
-    the 317-byte steps (stream[i*317:(i+1)*317]), NOT the 320-byte printed row
-    boundaries (each print row is 320B = 317B of data + 3 dangling bytes).
-  * 317 is odd, so a 2-byte-per-pixel split drops one byte -> 316 bytes =
-    158 pixels.  Two alignments are tried:
-      - tail mode: drop the LAST byte of the 317-byte row (bytes [0:316])
-      - head mode: drop the FIRST byte of the 317-byte row (bytes [1:317])
+Outputs:
+  - rgb565_be_aligntail.png       raw frame (natural size)
+  - rgb565_be_aligntail_circles.png  frame with sampling squares overlaid
+  - bands8.png                    8-color bar chart (800x200)
+  - bands5.png                    5-color bar chart (500x200)
 
-Encoding: RGB565 big-endian only (OV7670 COM15=0xD0 + ST7735 COLMOD=0x05
-confirmed as RGB565, high byte first).  Two outputs total (head + tail).
+Sampling uses multi-row mean averaging over configurable square regions
+centered at known colorband positions (--centers, --half).
 """
 
 import argparse
@@ -117,8 +114,59 @@ def draw_frame(frame, outpath, scale=4):
     img.save(outpath)
 
 
-def draw_bars(colors, outpath, w=800, h=400, labels=True):
-    """Draw an 8-bar chart: 8 vertical bars side by side (left-to-right)."""
+def draw_squares(img, centers, half=3, scale=4):
+    """Overlay sampling square regions on the frame image.
+
+    Each square is (2*half+1) pixels wide, centered at the given pixel
+    coordinate, spanning the full image height.  A label is drawn above.
+    """
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(img)
+    names = ['White', 'Yellow', 'Cyan', 'Green',
+             'Magenta', 'Red', 'Blue', 'Black']
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+              (255, 0, 255), (0, 255, 255), (128, 128, 128), (255, 255, 255)]
+    for i, (cx, name, color) in enumerate(zip(centers, names, colors)):
+        x0 = (cx - half) * scale
+        x1 = (cx + half + 1) * scale
+        y0 = img.height // 2 - half * scale
+        y1 = img.height // 2 + (half + 1) * scale
+        draw.rectangle([x0, y0, x1, y1], outline=color, width=2)
+        draw.text((x0 + 2, y0 - 12), name, fill=color)
+    return img
+
+
+def sample_bars(stream, nrows, centers, half=3):
+    """Multi-row mean sampling over square regions.
+
+    For each center pixel, averages all pixels in [cx-half, cx+half] across
+    nrows rows.  Returns a list of 8 (R, G, B) tuples.
+    """
+    row_w = 317
+    npix = 158
+    bar8 = []
+    for cx in centers:
+        sum_r, sum_g, sum_b, count = 0, 0, 0, 0
+        for ri in range(nrows):
+            win = stream[ri * row_w : ri * row_w + 316]
+            for dx in range(-half, half + 1):
+                px = cx + dx
+                if 0 <= px < npix:
+                    w = win[px * 2] << 8 | win[px * 2 + 1]
+                    r = (w >> 11) & 0x1F
+                    g = (w >> 5) & 0x3F
+                    b = w & 0x1F
+                    sum_r += (r << 3) | (r >> 2)
+                    sum_g += (g << 2) | (g >> 4)
+                    sum_b += (b << 3) | (b >> 2)
+                    count += 1
+        bar8.append((round(sum_r / count), round(sum_g / count),
+                     round(sum_b / count)))
+    return bar8
+
+
+def draw_bars(colors, outpath, w=800, h=200, labels=True):
+    """Draw a color bar chart: vertical bars side by side (left-to-right)."""
     img = Image.new('RGB', (w, h))
     draw = __import__('PIL.ImageDraw', fromlist=['ImageDraw']).Draw(img)
     seg = w // len(colors)
@@ -131,7 +179,7 @@ def draw_bars(colors, outpath, w=800, h=400, labels=True):
     img.save(outpath)
 
 
-def draw_bar5(colors, outpath, w=800, h=160):
+def draw_bar5(colors, outpath, w=500, h=200):
     """Draw the 5-band chart: 5 vertical bars (White Black Red Green Blue)."""
     draw_bars(colors, outpath, w=w, h=h, labels=False)
 
@@ -163,52 +211,58 @@ def render_all(rows, align_mode):
     return frame
 
 
-def segment_modal(frame, nseg=8):
-    """Modal color of each of the nseg equal horizontal segments across all rows."""
-    width = min(len(r) for r in frame)
-    segs = [Counter() for _ in range(nseg)]
-    for r in frame:
-        for x, c in enumerate(r[:width]):
-            segs[(x * nseg) // width][c] += 1
-    return [s.most_common(1)[0][0] if s else (0, 0, 0) for s in segs]
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('log', help='serial capture log with hexdump lines')
     ap.add_argument('-o', '--outdir', default='colorbar_charts')
-    ap.add_argument('--tp', default=None, help='select test pattern frame by its "[tp=NN ...]" tag (default: first frame)')
+    ap.add_argument('--tp', default=None,
+                    help='select test pattern frame by its "[tp=NN ...]" tag '
+                         '(default: first frame)')
+    ap.add_argument('--centers', default='14,34,54,74,96,116,136,153',
+                    help='sampling center positions, comma-separated pixel '
+                         'coords (default: 14,34,54,74,96,116,136,153)')
+    ap.add_argument('--half', type=int, default=3,
+                    help='sampling half-side length in pixels (default: 3)')
     args = ap.parse_args()
 
-    rows = parse_rows(args.log, tp=args.tp)
-    stream_len = sum(len(b) for b in rows.values())
-    nrows = min(stream_len // 317, 120)
-    tp_tag = args.tp if args.tp is not None else 'first'
-    print(f'parsed {len(rows)} dump lines (tp={tp_tag}), stream={stream_len}B -> {nrows} 317B rows (first 120)')
-    os.makedirs(args.outdir, exist_ok=True)
-    os.makedirs(os.path.join(args.outdir, 'bands5'), exist_ok=True)
+    centers = [int(x) for x in args.centers.split(',')]
 
-    amodes = ('head', 'tail')
-    report = []
-    for am in amodes:
-        frame = render_all(rows, am)
-        if len(frame) < 2:
-            print(f'  skip align{am}: empty frame')
-            continue
-        name = f'rgb565_be_align{am}.png'
-        draw_frame(frame, os.path.join(args.outdir, name))
-        bar8 = segment_modal(frame)
-        bar5 = [bar8[i] for i in EVAL_IDX]
-        draw_bar5(bar5, os.path.join(args.outdir, 'bands5', name))
-        err = sum(sum((bar5[i][k] - STD_8[idx][k]) ** 2 for k in range(3))
-                  for i, idx in enumerate(EVAL_IDX))
-        report.append((name, bar8, bar5, err))
-    print('done ->', args.outdir)
-    for name, bar8, bar5, err in sorted(report, key=lambda t: t[3]):
-        b8 = ' '.join(f'{c}' for c in bar8)
-        b5 = ' '.join(f'{c}' for c in bar5)
-        print(f'{name} err={err}\n   8bar: {b8}\n   5bar: {b5}')
+    rows = parse_rows(args.log, tp=args.tp)
+    stream = b''.join(rows[r] for r in sorted(rows))
+    nrows = min(len(stream) // 317, 120)
+    tp_tag = args.tp if args.tp is not None else 'first'
+    print(f'parsed {len(rows)} dump lines (tp={tp_tag}), '
+          f'stream={len(stream)}B -> {nrows} 317B rows')
+    os.makedirs(args.outdir, exist_ok=True)
+
+    # 1. Raw frame image (natural size)
+    frame = render_all(rows, 'tail')
+    frame_path = os.path.join(args.outdir, 'rgb565_be_aligntail.png')
+    draw_frame(frame, frame_path)
+
+    # 2. Frame image with sampling squares overlaid
+    frame_img = Image.open(frame_path)
+    draw_squares(frame_img, centers, half=args.half)
+    frame_img.save(os.path.join(args.outdir,
+                                'rgb565_be_aligntail_circles.png'))
+
+    # 3. Multi-row mean sampling
+    bar8 = sample_bars(stream, nrows, centers, half=args.half)
+    bar5 = [bar8[i] for i in EVAL_IDX]
+
+    # 4. bands8 (800x200)
+    draw_bars(bar8, os.path.join(args.outdir, 'bands8.png'), w=800, h=200)
+
+    # 5. bands5 (500x200)
+    draw_bar5(bar5, os.path.join(args.outdir, 'bands5.png'), w=500, h=200)
+
+    # 6. Report
+    err = sum(sum((bar5[i][k] - STD_8[idx][k]) ** 2 for k in range(3))
+              for i, idx in enumerate(EVAL_IDX))
+    print(f'bands8: {" ".join(str(c) for c in bar8)}')
+    print(f'bands5: {" ".join(str(c) for c in bar5)}')
+    print(f'err={err}')
 
 
 if __name__ == '__main__':

@@ -329,7 +329,7 @@ static const struct
   { OV7670_REG_AWB_CTRL9, 0x9Fu },
   { OV7670_REG_GGAIN,     0x40u },
   { OV7670_REG_BLUE,      0x40u },
-  { OV7670_REG_RED,       0x60u },
+  { OV7670_REG_RED,       0x40u },
 
   /* ---- COM8: re-enable AWB (all auto features on) ---- */
   { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
@@ -355,7 +355,7 @@ static const struct
   { OV7670_REG_SATCR,    0x60u },
   { OV7670_REG_CONTRAS,  0x40u },
   { OV7670_REG_BRIGHT,   0x00u },
-  { OV7670_REG_COM16,    0x38u },
+  { OV7670_REG_COM16,    0x28u },
 
   /* ---- Frame rate / noise ---- */
   { OV7670_REG_ARBLM,    0x11u },

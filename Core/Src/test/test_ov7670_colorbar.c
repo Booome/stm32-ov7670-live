@@ -180,8 +180,8 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   /* Enable colorbar: COM7 bit1 + COM17 bit3 + test_pattern bits.
    * COM7 base stays VGA+RGB565 (0x04) as configured by OV7670_Init; bit1
    * adds the color bar without re-selecting QVGA. */
-  SCCB_WriteReg(0x12u, 0x06u);  /* COM7: bit1 color bar (VGA+RGB565 base) */
-  SCCB_WriteReg(0x42u, 0x08u);  /* COM17: bit3 DSP color bar */
+  SCCB_WriteReg(0x12u, 0x06u);  /* COM7: RGB565 + sensor colorbar (bit1) */
+  SCCB_WriteReg(0x42u, 0x00u);  /* COM17: no DSP colorbar */
   SCCB_WriteReg(0x70u, xsc);    /* SCALING_XSC */
   SCCB_WriteReg(0x71u, ysc);    /* SCALING_YSC */
 
@@ -189,6 +189,19 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
    * auto algorithm. COM8=0x80 keeps only FASTAEC+AECSTEP+BFILT.
    * NOTE: COM8 is at 0x13 (0x0E is COM5, a common mixup). */
   SCCB_WriteReg(0x13u, 0x80u);  /* COM8: disable AWB+AGC+AEC */
+
+  /* Set AWB gains to unity AFTER disabling AWB, so the auto algorithm
+   * doesn't overwrite them.  With sensor colorbar (COM7 bit1), the AWB
+   * gains are in the signal path -- unity gives unbiased colors. */
+  SCCB_WriteReg(0xCEu, 0x40u);  /* GGAIN: 1x */
+  SCCB_WriteReg(0xCFu, 0x40u);  /* BLUE:  1x */
+  SCCB_WriteReg(0xD0u, 0x40u);  /* RED:   1x */
+
+  /* Re-enable gamma (COM13 bit7=1) to compensate green attenuation,
+   * but disable UV auto (bit6=0).  Disable ABLC (COM6 bit3=0) to
+   * reduce the black level offset added by the calibration loop. */
+  SCCB_WriteReg(0x3Du, 0x82u);  /* COM13: gamma on, UV auto off */
+  SCCB_WriteReg(0x0Fu, 0x43u);  /* COM6: ABLC off */
 
   /* Readback diagnostics: confirm writes actually landed */
   debug_printf("  [%s] readback COM7=0x%02X COM8=0x%02X COM17=0x%02X XSC=0x%02X YSC=0x%02X\n",
@@ -199,6 +212,9 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
                label, SCCB_ReadReg(0x04u), SCCB_ReadReg(0x0Cu), SCCB_ReadReg(0x3Au),
                SCCB_ReadReg(0x3Du), SCCB_ReadReg(0x3Eu), SCCB_ReadReg(0x40u),
                SCCB_ReadReg(0x8Cu));
+  debug_printf("  [%s] color: COM16=0x%02X RED=0x%02X BLUE=0x%02X GGAIN=0x%02X\n",
+               label, SCCB_ReadReg(0x41u), SCCB_ReadReg(0xD0u),
+               SCCB_ReadReg(0xCFu), SCCB_ReadReg(0xCEu));
 
   DWT_DelayMs(1000u);   /* LONGER settle: OV7670_Init hard-resets the
                          * sensor, which needs >300ms for HREF/PCLK. */
