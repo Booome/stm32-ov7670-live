@@ -2,8 +2,10 @@
 """Render OV7670 colorbar capture into 8-band and 5-band color chart PNGs.
 
 Reads a serial capture log whose data lines look like:
-    R017:fe29fe89fe89...
-Each R<nn>: line is the raw bytes of one FIFO row as hex.
+    000: 30 40 01 04 30 40 01 04 ...   (32 bytes per line)
+Each "NNN:" line holds 32 bytes of the raw frame byte stream, NNN being
+the 3-hex-digit line offset (line 000 covers stream bytes [0:32]).  All
+lines between FRAME_START and FRAME_END are concatenated into one stream.
 
 Row model (established by prior experiments):
   * The captured byte stream has a 317-byte period.  Pixel-row boundaries are
@@ -34,42 +36,50 @@ STD_8 = [(255, 255, 255), (255, 255, 0), (0, 255, 255), (0, 255, 0),
 EVAL_IDX = (0, 7, 5, 3, 6)  # White Black Red Green Blue positions
 
 
-def parse_rows(path):
-    """Return {row_index: bytes} for the first COMPLETE 120-row sweep.
+def parse_rows(path, tp=None):
+    """Return {line_offset: 32 bytes} for one complete frame dump.
 
-    The test prints R<nn>: rows in a loop (multiple sweeps of the same frame).
-    The last sweep is usually truncated mid-way; its short/cut rows must NOT be
-    merged into the stream (they shift the 317-byte phase and produce a
-    color-shifted block at the bottom of the chart).  We take the first sweep
-    that has all 120 rows with a uniform 320-byte payload.
+    New hexdump format: "NNN: b0 b1 ... b31" with NNN the 3-hex-digit line
+    offset.  Every line between FRAME_START and FRAME_END belongs to the
+    same frame; concatenating the dict values in key order rebuilds the
+    raw byte stream.  If tp is given (e.g. '10'), only the frame whose
+    FRAME_START tag is "[tp=10 ...] FRAME_START" is selected; otherwise the
+    first frame dump in the log is used.
     """
-    sweeps = []   # list of list[(idx, bytes)]
-    cur = None
-    prev_idx = None
+    rows = {}
+    on = False
+    want = None
     with open(path, encoding='utf-8', errors='replace') as fh:
         for line in fh:
-            m = re.match(r'\s*R(\d+):\s*([0-9a-fA-F]+)\s*$', line)
+            s = line.strip()
+            if s.endswith('FRAME_START'):
+                m = re.match(r'\[tp=(\d+)\s', s)
+                frm_tp = m.group(1) if m else None
+                if tp is not None and frm_tp != tp:
+                    on = False
+                    continue
+                rows = {}
+                want = frm_tp
+                on = True
+                continue
+            if s.endswith('FRAME_END'):
+                if on and want is not None:
+                    break
+                continue
+            if not on:
+                continue
+            m = re.match(r'([0-9a-f]{3}): (.*)$', s)
             if not m:
                 continue
-            idx = int(m.group(1))
-            h = m.group(2)
-            if len(h) % 2 != 0:
+            off = int(m.group(1), 16)
+            fields = m.group(2).split()
+            if len(fields) != 32:
                 continue
-            data = bytes.fromhex(h)
-            if prev_idx is None or idx <= prev_idx:  # new sweep starts
-                cur = []
-                sweeps.append(cur)
-            cur.append((idx, data))
-            prev_idx = idx
-    for sweep in sweeps:
-        if len(sweep) < 120:
-            continue
-        if len(set(len(b) for _, b in sweep)) != 1:
-            continue
-        rows = dict((i, b) for i, b in sweep)
-        if sorted(rows)[:120] == list(range(120)):
-            return rows
-    raise ValueError('no complete 120-row sweep (uniform payload) found in log')
+            data = bytes(int(f, 16) for f in fields)
+            rows[off] = data
+    if not rows:
+        raise ValueError('no frame dump between FRAME_START and FRAME_END')
+    return rows
 
 
 def dec_rgb565(w):
@@ -204,16 +214,18 @@ def segment_modal(frame, nseg=8):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('log', help='serial capture log with R<nn>: hex rows')
+    ap.add_argument('log', help='serial capture log with "NNN: b0 b1 ... b31" hexdump lines')
     ap.add_argument('-o', '--outdir', default='colorbar_charts')
+    ap.add_argument('--tp', default=None, help='select test pattern frame by its "[tp=NN ...]" tag (default: first frame)')
     ap.add_argument('--align', choices=('both', 'head', 'tail'), default='both',
                     help='pixel alignment: drop first byte (head) or last byte (tail)')
     args = ap.parse_args()
 
-    rows = parse_rows(args.log)
+    rows = parse_rows(args.log, tp=args.tp)
     stream_len = sum(len(b) for b in rows.values())
     nrows = min(stream_len // 317, 120)
-    print(f'parsed {len(rows)} R-lines, stream={stream_len}B -> {nrows} 317B rows (first 120)')
+    tp_tag = args.tp if args.tp is not None else 'first'
+    print(f'parsed {len(rows)} dump lines (tp={tp_tag}), stream={stream_len}B -> {nrows} 317B rows (first 120)')
     os.makedirs(args.outdir, exist_ok=True)
     os.makedirs(os.path.join(args.outdir, 'bands5'), exist_ok=True)
 
