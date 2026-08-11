@@ -187,21 +187,9 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
 
   /* Disable AWB/AGC/AEC so the colorbar is not "white-balanced" by the
    * auto algorithm. COM8=0x80 keeps only FASTAEC+AECSTEP+BFILT.
-   * NOTE: COM8 is at 0x13 (0x0E is COM5, a common mixup). */
+   * NOTE: COM8 is at 0x13 (0x0E is COM5, a common mixup).
+   * AWB gains, contrast, gamma, ABLC are already set by OV7670_Init(). */
   SCCB_WriteReg(0x13u, 0x80u);  /* COM8: disable AWB+AGC+AEC */
-
-  /* Set AWB gains to unity AFTER disabling AWB, so the auto algorithm
-   * doesn't overwrite them.  With sensor colorbar (COM7 bit1), the AWB
-   * gains are in the signal path -- unity gives unbiased colors. */
-  SCCB_WriteReg(0xCEu, 0x40u);  /* GGAIN: 1x */
-  SCCB_WriteReg(0xCFu, 0x40u);  /* BLUE:  1x */
-  SCCB_WriteReg(0xD0u, 0x40u);  /* RED:   1x */
-
-  /* Re-enable gamma (COM13 bit7=1) to compensate green attenuation,
-   * but disable UV auto (bit6=0).  Disable ABLC (COM6 bit3=0) to
-   * reduce the black level offset added by the calibration loop. */
-  SCCB_WriteReg(0x3Du, 0x82u);  /* COM13: gamma on, UV auto off */
-  SCCB_WriteReg(0x0Fu, 0x43u);  /* COM6: ABLC off */
 
   /* Readback diagnostics: confirm writes actually landed */
   debug_printf("  [%s] readback COM7=0x%02X COM8=0x%02X COM17=0x%02X XSC=0x%02X YSC=0x%02X\n",

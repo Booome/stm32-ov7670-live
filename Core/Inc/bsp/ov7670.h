@@ -90,6 +90,16 @@ static inline void OV7670_FIFO_WR_Low(void)
 
 /* ---- Public API ---- */
 
+/* ---- Tunable image parameters (may need per-module adjustment) ----
+ * These values are used in OV7670_Init() and shared by all callers.
+ * Unity AWB gain = 0x40.  Contrast default = 0x40. */
+#define OV7670_AWB_GGAIN    0x40u
+#define OV7670_AWB_BLUE     0x40u
+#define OV7670_AWB_RED      0x40u
+#define OV7670_CONTRAS      0xC0u
+#define OV7670_COM13_VAL    0x82u  /* gamma on, UV auto off */
+#define OV7670_COM6_VAL     0x43u  /* ABLC off */
+
 /** @brief  Initialize OV7670: hardware reset + SCCB register config
   * @retval true   All registers written successfully
   * @retval false  Camera not responding (SCCB NACK)

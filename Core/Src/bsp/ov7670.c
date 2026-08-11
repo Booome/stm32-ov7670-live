@@ -281,7 +281,7 @@ static const struct
 
   /* ---- Reserved / magic registers ---- */
   { OV7670_REG_COM5,     0x61u },
-  { OV7670_REG_COM6,     0x4Bu },
+  { OV7670_REG_COM6,     OV7670_COM6_VAL },
   { OV7670_REG_MAGIC_16, 0x02u },
   { OV7670_REG_MVFP,     0x07u },
   { OV7670_REG_ADCCTR1,  0x02u },
@@ -327,12 +327,12 @@ static const struct
   { OV7670_REG_AWB_CTRL7, 0x55u },
   { OV7670_REG_AWB_CTRL8, 0x11u },
   { OV7670_REG_AWB_CTRL9, 0x9Fu },
-  { OV7670_REG_GGAIN,     0x40u },
-  { OV7670_REG_BLUE,      0x40u },
-  { OV7670_REG_RED,       0x40u },
+  { OV7670_REG_GGAIN,     OV7670_AWB_GGAIN },
+  { OV7670_REG_BLUE,      OV7670_AWB_BLUE },
+  { OV7670_REG_RED,       OV7670_AWB_RED },
 
-  /* ---- COM8: re-enable AWB (all auto features on) ---- */
-  { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
+  /* ---- COM8: re-enable AGC+AEC (AWB stays off to preserve gain values) ---- */
+  { OV7670_REG_COM8, 0xE5u }, /* FASTAEC+AECSTEP+BFILT+AGC+AEC (no AWB) */
 
   /* ---- Color matrix (reference FIFO camera values) ---- */
   { OV7670_REG_MTX1, 0x80u },
@@ -350,10 +350,10 @@ static const struct
   { OV7670_REG_REG76,    0xE1u },
   { OV7670_REG_DNSTH,    0x00u },
   { OV7670_REG_MAGIC_77, 0x01u },
-  { OV7670_REG_COM13,    0xC2u },
+  { OV7670_REG_COM13,    OV7670_COM13_VAL },
   { OV7670_REG_MAGIC_4B, 0x09u },
   { OV7670_REG_SATCR,    0x60u },
-  { OV7670_REG_CONTRAS,  0x40u },
+  { OV7670_REG_CONTRAS,  OV7670_CONTRAS },
   { OV7670_REG_BRIGHT,   0x00u },
   { OV7670_REG_COM16,    0x28u },
 
