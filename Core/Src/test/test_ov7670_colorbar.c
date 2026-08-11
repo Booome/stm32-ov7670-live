@@ -195,6 +195,10 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
                label, SCCB_ReadReg(0x12u), SCCB_ReadReg(0x13u),
                SCCB_ReadReg(0x42u),
                SCCB_ReadReg(0x70u), SCCB_ReadReg(0x71u));
+  debug_printf("  [%s] fmt: COM1=0x%02X COM3=0x%02X TSLB=0x%02X COM13=0x%02X COM14=0x%02X COM15=0x%02X RGB444=0x%02X\n",
+               label, SCCB_ReadReg(0x04u), SCCB_ReadReg(0x0Cu), SCCB_ReadReg(0x3Au),
+               SCCB_ReadReg(0x3Du), SCCB_ReadReg(0x3Eu), SCCB_ReadReg(0x40u),
+               SCCB_ReadReg(0x8Cu));
 
   DWT_DelayMs(1000u);   /* LONGER settle: OV7670_Init hard-resets the
                          * sensor, which needs >300ms for HREF/PCLK. */

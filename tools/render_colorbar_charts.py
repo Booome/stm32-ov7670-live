@@ -2,10 +2,10 @@
 """Render OV7670 colorbar capture into 8-band and 5-band color chart PNGs.
 
 Reads a serial capture log whose data lines look like:
-    000: 30 40 01 04 30 40 01 04 ...   (32 bytes per line)
-Each "NNN:" line holds 32 bytes of the raw frame byte stream, NNN being
-the 8-hex-digit byte offset (line 00000000 covers stream bytes [0:32]).  All
-lines between FRAME_START and FRAME_END are concatenated into one stream.
+    00000000: 30 40 01 04 30 40 01 04 ...   (32 bytes per line)
+Each line holds 32 bytes of the raw frame byte stream, the 8-hex-digit
+prefix being the byte offset.  All lines between FRAME_START and
+FRAME_END are concatenated into one stream.
 
 Row model (established by prior experiments):
   * The captured byte stream has a 317-byte period.  Pixel-row boundaries are
@@ -15,10 +15,9 @@ Row model (established by prior experiments):
     158 pixels.  Two alignments are tried:
       - tail mode: drop the LAST byte of the 317-byte row (bytes [0:316])
       - head mode: drop the FIRST byte of the 317-byte row (bytes [1:317])
-  * Each mode is rendered under every plausible color encoding.
 
-The 5-band chart takes the measured colors at the White/Black/Red/Green/Blue
-positions (indices 0,7,5,3,6) -- positions, not the standard values.
+Encoding: RGB565 big-endian only (OV7670 COM15=0xD0 + ST7735 COLMOD=0x05
+confirmed as RGB565, high byte first).  Two outputs total (head + tail).
 """
 
 import argparse
@@ -37,10 +36,10 @@ EVAL_IDX = (0, 7, 5, 3, 6)  # White Black Red Green Blue positions
 
 
 def parse_rows(path, tp=None):
-    """Return {line_offset: 32 bytes} for one complete frame dump.
+    """Return {byte_offset: 32 bytes} for one complete frame dump.
 
-    New hexdump format: "NNN: b0 b1 ... b31" with NNN the 3-hex-digit line
-    offset.  Every line between FRAME_START and FRAME_END belongs to the
+    Hexdump format: "NNNNNNNN: b0 b1 ... b31" with NNNNNNNN the 8-hex-digit
+    byte offset.  Every line between FRAME_START and FRAME_END belongs to the
     same frame; concatenating the dict values in key order rebuilds the
     raw byte stream.  If tp is given (e.g. '10'), only the frame whose
     FRAME_START tag is "[tp=10 ...] FRAME_START" is selected; otherwise the
@@ -89,46 +88,9 @@ def dec_rgb565(w):
     return ((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2))
 
 
-def dec_rgb555(w):
-    r = (w >> 10) & 0x1F
-    g = (w >> 5) & 0x1F
-    b = w & 0x1F
-    return ((r << 3) | (r >> 2), (g << 3) | (g >> 2), (b << 3) | (b >> 2))
-
-
-def yuv2rgb(y, u, v):
-    c = y - 16
-    r = 1.164 * c + 1.596 * (v - 128)
-    g = 1.164 * c - 0.813 * (v - 128) - 0.391 * (u - 128)
-    b = 1.164 * c + 2.018 * (u - 128)
-    return (max(0, min(255, int(round(r)))),
-            max(0, min(255, int(round(g)))),
-            max(0, min(255, int(round(b)))))
-
-
-def decode_pixel(enc, b0, b1):
-    """Decode one 2-byte pixel under the given encoding."""
-    if enc == 'rgb565_le':
-        return dec_rgb565(b1 << 8 | b0)
-    if enc == 'rgb565_be':
-        return dec_rgb565(b0 << 8 | b1)
-    if enc == 'rgb555_le':
-        return dec_rgb555(b1 << 8 | b0)
-    if enc == 'rgb555_be':
-        return dec_rgb555(b0 << 8 | b1)
-    if enc == 'grb_g_r':
-        return (b1, b0, b0)
-    if enc == 'grb_g_b':
-        return (b0, b0, b1)
-    if enc == 'grb_r_g':
-        return (b0, b1, b1)
-    if enc == 'grb_b_g':
-        return (b1, b1, b0)
-    if enc == 'yuv_yuyv':
-        return yuv2rgb(b0, b1, b1)  # approximated, UV unknown here
-    if enc == 'yuv_uyvy':
-        return yuv2rgb(b1, b0, b0)
-    return (0, 0, 0)
+def decode_pixel(b0, b1):
+    """Decode one 2-byte RGB565 pixel (big-endian: b0=high, b1=low)."""
+    return dec_rgb565(b0 << 8 | b1)
 
 
 def nearest_std(c):
@@ -174,7 +136,7 @@ def draw_bar5(colors, outpath, w=800, h=160):
     draw_bars(colors, outpath, w=w, h=h, labels=False)
 
 
-def render_all(rows, enc, align_mode):
+def render_all(rows, align_mode):
     """Return list of per-row pixel color lists.
 
     The captured byte stream is split into rows by its 317-byte period first
@@ -196,7 +158,7 @@ def render_all(rows, enc, align_mode):
             pix = win[0:316]
         row = []
         for j in range(0, len(pix) - 1, 2):
-            row.append(decode_pixel(enc, pix[j], pix[j + 1]))
+            row.append(decode_pixel(pix[j], pix[j + 1]))
         frame.append(row)
     return frame
 
@@ -214,11 +176,9 @@ def segment_modal(frame, nseg=8):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('log', help='serial capture log with "NNN: b0 b1 ... b31" hexdump lines')
+    ap.add_argument('log', help='serial capture log with hexdump lines')
     ap.add_argument('-o', '--outdir', default='colorbar_charts')
     ap.add_argument('--tp', default=None, help='select test pattern frame by its "[tp=NN ...]" tag (default: first frame)')
-    ap.add_argument('--align', choices=('both', 'head', 'tail'), default='both',
-                    help='pixel alignment: drop first byte (head) or last byte (tail)')
     args = ap.parse_args()
 
     rows = parse_rows(args.log, tp=args.tp)
@@ -229,27 +189,21 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     os.makedirs(os.path.join(args.outdir, 'bands5'), exist_ok=True)
 
-    encodings = ['rgb565_le', 'rgb565_be', 'rgb555_le', 'rgb555_be',
-                 'grb_g_r', 'grb_g_b', 'grb_r_g', 'grb_b_g',
-                 'yuv_yuyv', 'yuv_uyvy']
-    amodes = ('head', 'tail') if args.align == 'both' else (args.align,)
+    amodes = ('head', 'tail')
     report = []
-    for enc in encodings:
-        for am in amodes:
-            frame = render_all(rows, enc, am)
-            if len(frame) < 2:
-                print(f'  skip {enc} {am}: empty frame')
-                continue
-            name = f'{enc}_align{am}.png'
-            # 8-band chart: render the raw serial data directly (vertical bars)
-            draw_frame(frame, os.path.join(args.outdir, name))
-            # segment modal colors, then pick the eval positions
-            bar8 = segment_modal(frame)
-            bar5 = [bar8[i] for i in EVAL_IDX]
-            draw_bar5(bar5, os.path.join(args.outdir, 'bands5', name))
-            err = sum(sum((bar5[i][k] - STD_8[idx][k]) ** 2 for k in range(3))
-                      for i, idx in enumerate(EVAL_IDX))
-            report.append((name, bar8, bar5, err))
+    for am in amodes:
+        frame = render_all(rows, am)
+        if len(frame) < 2:
+            print(f'  skip align{am}: empty frame')
+            continue
+        name = f'rgb565_be_align{am}.png'
+        draw_frame(frame, os.path.join(args.outdir, name))
+        bar8 = segment_modal(frame)
+        bar5 = [bar8[i] for i in EVAL_IDX]
+        draw_bar5(bar5, os.path.join(args.outdir, 'bands5', name))
+        err = sum(sum((bar5[i][k] - STD_8[idx][k]) ** 2 for k in range(3))
+                  for i, idx in enumerate(EVAL_IDX))
+        report.append((name, bar8, bar5, err))
     print('done ->', args.outdir)
     for name, bar8, bar5, err in sorted(report, key=lambda t: t[3]):
         b8 = ' '.join(f'{c}' for c in bar8)
