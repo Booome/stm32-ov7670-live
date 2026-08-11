@@ -3,16 +3,23 @@
 
 Holds the MCU in reset with openocd `reset halt`, opens and flushes the
 serial port while the firmware is still halted (no output yet), then
-releases reset with `reset run` and captures for a fixed duration.  This
-guarantees the capture starts at the very first byte of firmware boot,
-instead of racing a freshly-opening serial port against an already-running
-board.
+releases reset with `reset run` and captures the firmware output.
+
+By default the capture is marker-driven:
+  * everything before the `--start-marker` line is discarded
+    (default "=== Unit Test Runner Begin ===") -- stale bytes from a
+    previous session never enter the log;
+  * recording stops as soon as the `--stop-marker` line is seen
+    (default "=== Unit Test Runner End ==="), so the log always ends on a
+    clean boundary;
+  * `--duration` (default 180 s) is only a fallback timeout for firmware
+    that never prints the markers.
 
 Flow:
   1. openocd daemon starts and holds the MCU halted (reset halt).
   2. Serial port is opened and its RX FIFO flushed.
   3. openocd is told `reset run`; the firmware boots.
-  4. USART bytes are captured until the duration elapses.
+  4. USART bytes are captured until the stop marker (or timeout).
 """
 import argparse
 import os
@@ -33,7 +40,9 @@ TELNET_PORT = 4444
 RESET_HALT_WAIT_S = 15.0
 BAUD_DEFAULT = 115200
 PORT_DEFAULT = '/dev/ttyACM0'
-DURATION_DEFAULT = 10.0
+DURATION_DEFAULT = 180.0
+START_MARKER_DEFAULT = '=== Unit Test Runner Begin ==='
+STOP_MARKER_DEFAULT = '=== Unit Test Runner End ==='
 
 
 def wait_for_marker(log_path, marker, timeout_s):
@@ -93,28 +102,32 @@ def env_default(name, fallback):
     return val if val else fallback
 
 
-def flush_serial_input(ser, quiet_s=0.4, max_s=2.0):
-    """Drain the serial input until it stays empty for `quiet_s`.
+def flush_serial_input(ser, max_s=5.0):
+    """Drain the serial input until a blocking read times out.
 
     A single `reset_input_buffer()` (tcflush TCIFLUSH) only clears the tty
     layer.  On a CDC-ACM VCP the bytes the MCU emitted while openocd's
     `init` was still bringing the target up can be stuck deeper in the USB
-    stack, so one flush is not enough: keep draining until no new bytes
-    arrive for `quiet_s` (the MCU is halted, so silence proves the pipe is
-    truly empty).
+    stack, so one flush is not enough: set a blocking timeout and read
+    repeatedly until a read returns empty (the timeout fired), which proves
+    no further bytes are arriving.  The MCU is halted during this, so
+    silence really does mean the pipe is empty.  The caller's original
+    `ser.timeout` is restored afterwards.
     """
-    deadline = time.time() + max_s
-    last_rx = time.time()
-    while time.time() < deadline:
-        n = ser.in_waiting
-        if n:
-            ser.read(n)
-            last_rx = time.time()
-        elif time.time() - last_rx >= quiet_s:
-            break
+    old_timeout = ser.timeout
+    ser.timeout = 0.5
+    try:
+        deadline = time.time() + max_s
+        while time.time() < deadline:
+            data = ser.read(4096)
+            if not data:
+                break
         else:
-            time.sleep(0.02)
-    ser.reset_input_buffer()
+            sys.stderr.write('WARNING: serial input never went quiet within '
+                             '%.1fs; is the MCU actually halted?\n' % max_s)
+        ser.reset_input_buffer()
+    finally:
+        ser.timeout = old_timeout
 
 
 def send_openocd_command(command):
@@ -145,9 +158,15 @@ def main():
                         help='baud rate (default: SERIAL_CAPTURE_BAUD env, '
                              'else %(default)s)' % {'default': BAUD_DEFAULT})
     parser.add_argument('--duration', type=float, default=None,
-                        help='capture seconds after reset release '
+                        help='fallback timeout in seconds if no end marker '
                              '(default: SERIAL_CAPTURE_DURATION env, '
                              'else %(default)s)' % {'default': DURATION_DEFAULT})
+    parser.add_argument('--start-marker', default=None,
+                        help='line that begins recording; everything before '
+                             'it is discarded (default: %r)' % START_MARKER_DEFAULT)
+    parser.add_argument('--stop-marker', default=None,
+                        help='line that stops the capture; recording ends '
+                             'when it is seen (default: %r)' % STOP_MARKER_DEFAULT)
     parser.add_argument('--cfg', default=None,
                         help='openocd config file; auto-generated if omitted')
     parser.add_argument('--output', default=None,
@@ -159,6 +178,11 @@ def main():
         int(env_default('SERIAL_CAPTURE_BAUD', str(BAUD_DEFAULT)))
     duration = args.duration if args.duration is not None else \
         float(env_default('SERIAL_CAPTURE_DURATION', str(DURATION_DEFAULT)))
+    start_marker = args.start_marker if args.start_marker is not None else \
+        START_MARKER_DEFAULT
+    stop_marker = args.stop_marker if args.stop_marker is not None else \
+        STOP_MARKER_DEFAULT
+    max_marker_len = max((len(start_marker or ''), len(stop_marker or '')))
 
     if not port:
         port = detect_serial_port()
@@ -208,11 +232,39 @@ def main():
         out = open(args.output, 'w') if args.output else sys.stdout
         try:
             start = time.time()
+            buf = b''
+            recording = False
             while time.time() - start < duration:
                 data = ser.read(4096)
-                if data:
-                    out.write(data.decode('ascii', errors='replace'))
+                if not data:
+                    continue
+                buf += data
+                if not recording:
+                    if not start_marker:
+                        recording = True
+                    else:
+                        idx = buf.find(start_marker.encode('ascii'))
+                        if idx < 0:
+                            buf = buf[-(max_marker_len - 1):] if max_marker_len > 1 else buf
+                            continue
+                        buf = buf[idx:]
+                        recording = True
+                if recording and stop_marker:
+                    idx = buf.find(stop_marker.encode('ascii'))
+                    if idx >= 0:
+                        buf = buf[:idx + len(stop_marker.encode('ascii'))]
+                        out.write(buf.decode('ascii', errors='replace'))
+                        out.flush()
+                        return 0
+                if recording:
+                    out.write(buf.decode('ascii', errors='replace'))
                     out.flush()
+                    buf = b''
+            if buf:
+                out.write(buf.decode('ascii', errors='replace'))
+                out.flush()
+            sys.stderr.write('WARNING: capture ended by %ss timeout without '
+                             'stop marker\n' % duration)
         finally:
             if args.output:
                 out.close()
