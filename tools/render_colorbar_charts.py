@@ -4,7 +4,7 @@
 Reads a serial capture log whose data lines look like:
     000: 30 40 01 04 30 40 01 04 ...   (32 bytes per line)
 Each "NNN:" line holds 32 bytes of the raw frame byte stream, NNN being
-the 3-hex-digit line offset (line 000 covers stream bytes [0:32]).  All
+the 8-hex-digit byte offset (line 00000000 covers stream bytes [0:32]).  All
 lines between FRAME_START and FRAME_END are concatenated into one stream.
 
 Row model (established by prior experiments):
@@ -68,7 +68,7 @@ def parse_rows(path, tp=None):
                 continue
             if not on:
                 continue
-            m = re.match(r'([0-9a-f]{3}): (.*)$', s)
+            m = re.match(r'([0-9a-f]{8}): (.*)$', s)
             if not m:
                 continue
             off = int(m.group(1), 16)

@@ -248,134 +248,6 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   uint8_t *line_ref = s_share_buf;                /* row 0 reference */
   uint8_t *line_cur = s_share_buf + VF_ROW_BYTES; /* current row */
 
-  OV7670_FIFO_OE_High();
-  ResetReadPointer();
-  OV7670_FIFO_OE_Low();
-
-  /* ---- Phase A: contiguous capture for row-width forensics ----
-   * Read 4096B back-to-back from the read pointer WITHOUT assuming a
-   * 320B/row layout.  If the real row width is not 320B, a repeated
-   * pattern (walking-one / colorbar) will show a different period. */
-#define VF_DUMP_BYTES 4096u
-  uint8_t *contig = s_share_buf;
-  ReadFifoLineLen(contig, VF_DUMP_BYTES);
-
-  /* Dump the first 128 words verbatim (do NOT skip 0x3333: it is the
-   * inverse of 0xCCCC, and skipping would hide a real alternating
-   * bar pattern). */
-  debug_printf("  [%s] contig dump:", label);
-  uint16_t n_dump = (VF_DUMP_BYTES / 2u < 128u) ? (VF_DUMP_BYTES / 2u) : 128u;
-  for (uint16_t w = 0u; w < n_dump; w++)
-  {
-    uint16_t val = (uint16_t)(contig[w * 2u] |
-                   (uint16_t)(contig[w * 2u + 1u] << 8u));
-    debug_printf(" %04X", (unsigned)val);
-  }
-  debug_printf(" ...\n");
-
-  /* ---- Phase B: periodicity search over the contiguous block ----
-   * For a row layout of stride S, bytes at i and i+S should match a lot
-   * (row content repeats).  Try S in {160, 240, 320, 480, 640} bytes and
-   * report match ratio.  Then find the SMALLEST period P (bar width) that
-   * gives near-perfect autocorrelation. */
-  {
-    static const uint16_t cand[] = {160u, 240u, 320u, 480u, 640u, 768u, 960u, 1280u};
-    debug_printf("  [%s] row-stride autocorr:", label);
-    for (uint16_t c = 0u; c < sizeof(cand) / sizeof(cand[0]); c++)
-    {
-      uint16_t S = cand[c];
-      if (S >= VF_DUMP_BYTES)
-      {
-        break;
-      }
-      uint16_t match = 0u;
-      uint16_t total = 0u;
-      for (uint16_t i = 0u; i + S < VF_DUMP_BYTES; i++)
-      {
-        total++;
-        if (contig[i] == contig[i + S])
-        {
-          match++;
-        }
-      }
-      uint16_t pct = (total > 0u) ? (uint16_t)((uint32_t)match * 100u / total) : 0u;
-      debug_printf(" %u:%u%%", (unsigned)S, (unsigned)pct);
-    }
-    debug_printf("\n");
-
-    /* Smallest near-perfect period P over 4..256B (bar/row repetition) */
-    uint16_t bestP = 0u;
-    uint16_t bestPct = 0u;
-    for (uint16_t P = 4u; P <= 256u; P += 2u)
-    {
-      uint16_t match = 0u;
-      uint16_t total = 0u;
-      for (uint16_t i = 0u; i + P < VF_DUMP_BYTES && total < 1024u; i++)
-      {
-        total++;
-        if (contig[i] == contig[i + P])
-        {
-          match++;
-        }
-      }
-      uint16_t pct = (uint16_t)((uint32_t)match * 100u / total);
-      if (pct > bestPct)
-      {
-        bestPct = pct;
-        bestP = P;
-      }
-    }
-    debug_printf("  [%s] smallest_period P=%u pct=%u%%\n",
-                 label, (unsigned)bestP, (unsigned)bestPct);
-  }
-
-  /* ---- Phase B2: byte-value histogram ----
-   * Report how many distinct byte values appear and the top-4 counts.
-   * A low distinct count (<10) suggests the data is dominated by a
-   * single pattern or constant, making autocorr numbers less meaningful. */
-  {
-    uint16_t cnt[256] = {0u};
-    uint16_t distinct = 0u;
-    for (uint16_t i = 0u; i < VF_DUMP_BYTES; i++)
-    {
-      if (cnt[contig[i]] == 0u)
-      {
-        distinct++;
-      }
-      cnt[contig[i]]++;
-    }
-    debug_printf("  [%s] distinct_bytes=%u", label, (unsigned)distinct);
-    uint16_t top[4] = {0u, 0u, 0u, 0u};
-    uint16_t topv[4] = {0u, 0u, 0u, 0u};
-    for (uint16_t v = 0u; v < 256u; v++)
-    {
-      if (cnt[v] == 0u)
-      {
-        continue;
-      }
-      uint16_t rank = 4u;
-      while (rank > 0u && cnt[v] > top[rank - 1u])
-      {
-        if (rank < 4u)
-        {
-          top[rank] = top[rank - 1u];
-          topv[rank] = topv[rank - 1u];
-        }
-        rank--;
-      }
-      if (rank < 4u)
-      {
-        top[rank] = cnt[v];
-        topv[rank] = v;
-      }
-    }
-    for (uint16_t k = 0u; k < 4u; k++)
-    {
-      debug_printf(" [0x%02X]=%u", (unsigned)topv[k], (unsigned)top[k]);
-    }
-    debug_printf("\n");
-  }
-
   /* ---- Phase C: true row-width hypothesis check ----
    * If the sensor really outputs 160x120 (320B rows), then a frozen
    * colorbar should make ALL 120 rows byte-identical AND row0's 8 segments
@@ -477,9 +349,9 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
 
   /* ---- Phase D: full-frame dump for host-side analysis ----
    * Re-read the whole frozen frame (120 rows x 320B) and stream the raw
-   * byte sequence, 32 bytes per line preceded by the hex offset of the
-   * first byte: "000: ff 7f fe ff e7 ff e7 ...".  No row markers -- the
-   * byte stream itself carries the true layout to be determined host-side. */
+   * byte sequence, 32 bytes per line preceded by the 8-hex-digit byte
+   * offset.  A byte-value histogram is accumulated in the same pass so a
+   * quick distinct-bytes summary can be reported after the dump. */
   {
     OV7670_FIFO_OE_High();
     DWT_DelayMs(10u);
@@ -487,13 +359,21 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
     ResetReadPointer();
     debug_printf("  [%s] FRAME_START\n", label);
     uint32_t total = (uint32_t)VF_ROWS * VF_ROW_BYTES;
+    uint16_t cnt[256] = {0u};
+    uint16_t distinct = 0u;
     for (uint32_t i = 0u; i < total; i++)
     {
+      uint8_t b = ReadFifoByte();
+      if (cnt[b] == 0u)
+      {
+        distinct++;
+      }
+      cnt[b]++;
       if (i % 32u == 0u)
       {
-        debug_printf("%03x: ", (unsigned)(i / 32u));
+        debug_printf("    %08x: ", (unsigned)i);
       }
-      debug_printf("%02x ", (unsigned)ReadFifoByte());
+      debug_printf("%02x ", (unsigned)b);
       if ((i + 1u) % 32u == 0u)
       {
         debug_printf("\n");
@@ -504,13 +384,44 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
       debug_printf("\n");
     }
     debug_printf("  [%s] FRAME_END\n", label);
+
+    /* Quick histogram summary over the full frame */
+    uint16_t top[4] = {0u, 0u, 0u, 0u};
+    uint16_t topv[4] = {0u, 0u, 0u, 0u};
+    for (uint16_t v = 0u; v < 256u; v++)
+    {
+      if (cnt[v] == 0u)
+      {
+        continue;
+      }
+      uint16_t rank = 4u;
+      while (rank > 0u && cnt[v] > top[rank - 1u])
+      {
+        if (rank < 4u)
+        {
+          top[rank] = top[rank - 1u];
+          topv[rank] = topv[rank - 1u];
+        }
+        rank--;
+      }
+      if (rank < 4u)
+      {
+        top[rank] = cnt[v];
+        topv[rank] = v;
+      }
+    }
+    debug_printf("  [%s] distinct_bytes=%u", label, (unsigned)distinct);
+    for (uint16_t k = 0u; k < 4u; k++)
+    {
+      debug_printf(" [0x%02X]=%u", (unsigned)topv[k], (unsigned)top[k]);
+    }
+    debug_printf("\n");
   }
 
   OV7670_Init();
   DWT_DelayMs(200u);
 #undef VF_ROW_BYTES
 #undef VF_ROWS
-#undef VF_DUMP_BYTES
   return verdict;
 }
 
