@@ -211,11 +211,11 @@ static const struct
 
   /* ---- Output format ---- */
   { OV7670_REG_TSLB,   0x04u }, /* TSLB: OV output timing           */
-  { OV7670_REG_COM7,   0x14u }, /* COM7: QVGA + RGB565             */
-  { OV7670_REG_COM3,   0x0Cu }, /* COM3: DCW + down-sampling       */
-  { OV7670_REG_COM14,  0x18u }, /* COM14: DCW PCLK + manual scale  */
-  { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565      */
-  { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                 */
+  { OV7670_REG_COM7,   0x04u }, /* COM7: VGA + RGB565 (bit2=1 RGB)  */
+  { OV7670_REG_COM3,   0x04u }, /* COM3: down-sampling enable       */
+  { OV7670_REG_COM14,  0x1Au }, /* COM14: DCW PCLK + manual scale   */
+  { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565       */
+  { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                  */
 
   /* ---- VGA window (sensor readout area, OmniVision default) ---- */
   { OV7670_REG_HSTART, 0x13u },
@@ -225,12 +225,13 @@ static const struct
   { OV7670_REG_VSTOP,  0x7Au },
   { OV7670_REG_VREF,   0x0Au },
 
-  /* ---- Scaling (160x128 via DCW + Digital Zoom) ---- */
-  { OV7670_REG_SCALING_DCWCTR,     0x11u }, /* DCWCTR: H by2 (default)        */
-  { OV7670_REG_SCALING_XSC,        0x40u }, /* XSC: horizontal 0.5x (320->160)*/
-  { OV7670_REG_SCALING_YSC,        0x3Cu }, /* YSC: vertical 0.533x (240->128)*/
-  { OV7670_REG_SCALING_PCLK_DIV,   0xF1u }, /* PCLK_DIV: ref bayernfan         */
-  { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                      */
+  /* ---- Scaling (QQVGA 160x120: VGA by DCW down-sample by 4) ----
+   * Official Implementation Guide Table 2-2 QQVGA values. */
+  { OV7670_REG_SCALING_XSC,     0x3Au }, /* XSC: standard QQVGA factor   */
+  { OV7670_REG_SCALING_YSC,     0x35u }, /* YSC: standard QQVGA factor   */
+  { OV7670_REG_SCALING_DCWCTR,  0x22u }, /* DCWCTR: H/V down-sample by 4 */
+  { OV7670_REG_SCALING_PCLK_DIV, 0xF2u }, /* PCLK_DIV: match QQVGA       */
+  { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                  */
 
   /* ---- COM10: VSYNC/HREF/PCLK timing ---- */
   { OV7670_REG_COM10, 0x00u },
@@ -333,13 +334,13 @@ static const struct
   /* ---- COM8: re-enable AWB (all auto features on) ---- */
   { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
 
-  /* ---- Color matrix (RGB565 specific) ---- */
-  { OV7670_REG_MTX1, 0xB3u },
-  { OV7670_REG_MTX2, 0xB3u },
+  /* ---- Color matrix (reference FIFO camera values) ---- */
+  { OV7670_REG_MTX1, 0x80u },
+  { OV7670_REG_MTX2, 0x80u },
   { OV7670_REG_MTX3, 0x00u },
-  { OV7670_REG_MTX4, 0x3Du },
-  { OV7670_REG_MTX5, 0xA7u },
-  { OV7670_REG_MTX6, 0xE4u },
+  { OV7670_REG_MTX4, 0x22u },
+  { OV7670_REG_MTX5, 0x5Eu },
+  { OV7670_REG_MTX6, 0x80u },
   { OV7670_REG_MTXS, 0x9Eu },
 
   /* ---- Post-processing ---- */
@@ -349,7 +350,7 @@ static const struct
   { OV7670_REG_REG76,    0xE1u },
   { OV7670_REG_DNSTH,    0x00u },
   { OV7670_REG_MAGIC_77, 0x01u },
-  { OV7670_REG_COM13,    0xC0u },
+  { OV7670_REG_COM13,    0xC2u },
   { OV7670_REG_MAGIC_4B, 0x09u },
   { OV7670_REG_SATCR,    0x60u },
   { OV7670_REG_CONTRAS,  0x40u },

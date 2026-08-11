@@ -50,7 +50,7 @@ void TestRunner_Run(void)
 {
   /* Emit blank lines to separate from previous session output */
   debug_printf("\n\n\n");
-  debug_printf("=== Unit Test Runner ===\n");
+  debug_printf("=== Unit Test Runner Begin ===\n");
 
   /* Each RunXxxTests() owns its own UNITY_BEGIN()/UNITY_END();
      UnityBegin/UnityEnd are not reentrant and reset test state. */
@@ -78,6 +78,8 @@ void TestRunner_Run(void)
 #ifdef TEST_PIPELINE
   RunPipelineTests();   /* never returns: colorbar -> LCD streaming */
 #endif
+
+  debug_printf("=== Unit Test Runner End ===\n");
 
   /* TEST_LED feedback: all pass -> steady on, any fail -> fast blink. */
   for (;;)

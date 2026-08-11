@@ -14,7 +14,7 @@
 #define LCD_TEST_BLACK   0x0000u
 
 #define LCD_TEST_WIDTH      160u
-#define LCD_TEST_HEIGHT     128u
+#define LCD_TEST_HEIGHT     120u
 #define LCD_TEST_LINE_SIZE  (LCD_TEST_WIDTH * 2u)
 #define LCD_TEST_PATTERN_COUNT  9u
 

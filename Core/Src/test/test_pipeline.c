@@ -30,7 +30,7 @@
 #include "main.h"
 
 #define TEST_PIPELINE_FPS_WINDOW_MS  1000u
-#define TEST_PIPELINE_FRAME_BYTES    (160u * 128u * 2u)   /* 40960B RGB565 */
+#define TEST_PIPELINE_FRAME_BYTES    (160u * 120u * 2u)   /* 38400B RGB565 */
 #define TEST_PIPELINE_FIFO_BYTES     49152u               /* AL422B 48KB */
 
 void RunPipelineTests(void)

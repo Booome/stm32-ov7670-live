@@ -10,6 +10,9 @@
   *
   *          This separates "colorbar configuration wrong" from
   *          "pipeline/LCD timing broken".
+  *
+  *          Resolution: QQVGA 160x120 RGB565 (OV7670 official Table 2-2
+  *          down-sample by 4 from VGA).
   */
 #include "test_ov7670_colorbar.h"
 #include "test_lcd_common.h"
@@ -28,7 +31,7 @@
 _Static_assert(PIPELINE_WIDTH == LCD_TEST_WIDTH,
               "PIPELINE_WIDTH must equal LCD_TEST_WIDTH (160)");
 _Static_assert(PIPELINE_HEIGHT == LCD_TEST_HEIGHT,
-              "PIPELINE_HEIGHT must equal LCD_TEST_HEIGHT (128)");
+              "PIPELINE_HEIGHT must equal LCD_TEST_HEIGHT (120)");
 _Static_assert(PIPELINE_HALF_SIZE == LCD_TEST_LINE_SIZE,
               "PIPELINE_HALF_SIZE must equal LCD_TEST_LINE_SIZE (320B/row)");
 
@@ -147,14 +150,14 @@ static bool WaitVsyncEdge(bool rising)
 /* ---- Full-frame 8-bar verification ---- */
 
 /**
-  * @brief  Full-frame row verification at 160x128 for one test_pattern
+  * @brief  Full-frame row verification at 160x120 for one test_pattern
   *         bit direction.
   *
   *         COM7 bit1 + COM17 bit3 enable the colorbar; the two possible
   *         test_pattern bit directions (SCALING_XSC[7]/SCALING_YSC[7]) are
   *         passed in, since the datasheet table is ambiguous.
   *
-  *         The whole 40960B frame is read row-by-row (320B/row) without
+  *         The whole 38400B frame is read row-by-row (320B/row) without
   *         resetting the read pointer, so rows are contiguous. Vertical
   *         color bars imply every row equals row 0; any mismatch flags
   *         inter-row padding or a FIFO write gap. Row 0 is re-read after
@@ -174,15 +177,23 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   bool verdict = false;
   OV7670_Init();   /* our 160x128 scale */
 
-  /* Enable colorbar: COM7 bit1 + COM17 bit3 + test_pattern bits */
-  SCCB_WriteReg(0x12u, 0x16u);  /* COM7: bit1 color bar */
+  /* Enable colorbar: COM7 bit1 + COM17 bit3 + test_pattern bits.
+   * COM7 base stays VGA+RGB565 (0x04) as configured by OV7670_Init; bit1
+   * adds the color bar without re-selecting QVGA. */
+  SCCB_WriteReg(0x12u, 0x06u);  /* COM7: bit1 color bar (VGA+RGB565 base) */
   SCCB_WriteReg(0x42u, 0x08u);  /* COM17: bit3 DSP color bar */
   SCCB_WriteReg(0x70u, xsc);    /* SCALING_XSC */
   SCCB_WriteReg(0x71u, ysc);    /* SCALING_YSC */
 
+  /* Disable AWB/AGC/AEC so the colorbar is not "white-balanced" by the
+   * auto algorithm. COM8=0x80 keeps only FASTAEC+AECSTEP+BFILT.
+   * NOTE: COM8 is at 0x13 (0x0E is COM5, a common mixup). */
+  SCCB_WriteReg(0x13u, 0x80u);  /* COM8: disable AWB+AGC+AEC */
+
   /* Readback diagnostics: confirm writes actually landed */
-  debug_printf("  [%s] readback COM7=0x%02X COM17=0x%02X XSC=0x%02X YSC=0x%02X\n",
-               label, SCCB_ReadReg(0x12u), SCCB_ReadReg(0x42u),
+  debug_printf("  [%s] readback COM7=0x%02X COM8=0x%02X COM17=0x%02X XSC=0x%02X YSC=0x%02X\n",
+               label, SCCB_ReadReg(0x12u), SCCB_ReadReg(0x13u),
+               SCCB_ReadReg(0x42u),
                SCCB_ReadReg(0x70u), SCCB_ReadReg(0x71u));
 
   DWT_DelayMs(1000u);   /* LONGER settle: OV7670_Init hard-resets the
@@ -233,7 +244,7 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
    * writes, so WR_Low froze the frame. Resetting OV7670 stops PCLK (=WCK),
    * which is the AL422B DRAM refresh clock - losing it corrupts FIFO data. */
 #define VF_ROW_BYTES 320u   /* 160px * 2B */
-#define VF_ROWS 128u
+#define VF_ROWS 120u
   uint8_t *line_ref = s_share_buf;                /* row 0 reference */
   uint8_t *line_cur = s_share_buf + VF_ROW_BYTES; /* current row */
 
@@ -366,8 +377,8 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   }
 
   /* ---- Phase C: true row-width hypothesis check ----
-   * If the sensor really outputs 160x128 (320B rows), then a frozen
-   * colorbar should make ALL 128 rows byte-identical AND row0's 8 segments
+   * If the sensor really outputs 160x120 (320B rows), then a frozen
+   * colorbar should make ALL 120 rows byte-identical AND row0's 8 segments
    * uniform.  Report those two facts regardless of verdict. */
   OV7670_FIFO_OE_High();
   DWT_DelayMs(10u);
@@ -465,8 +476,8 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   debug_printf("  [%s] => %s\n", label, verdict ? "REAL 8-BAR" : "NOT 8-bar");
 
   /* ---- Phase D: full-frame dump for host-side image reconstruction ----
-   * Re-read the whole frozen frame (128 rows x 320B) and stream each row
-   * as lowercase hex so a script can rebuild the 160x128 RGB565 picture.
+   * Re-read the whole frozen frame (120 rows x 320B) and stream each row
+   * as lowercase hex so a script can rebuild the 160x120 RGB565 picture.
    * Line format: "R%03u:" + 640 hex chars (320B, MSB-first like raw). */
   {
     OV7670_FIFO_OE_High();
@@ -503,10 +514,10 @@ static void TrialFixedWindowWrite(void)
 {
   OV7670_Init();
   DWT_DelayMs(100u);
-  SCCB_WriteReg(0x12u, 0x16u);   /* COM7: bit1 color bar */
+  SCCB_WriteReg(0x12u, 0x06u);   /* COM7: bit1 color bar (VGA+RGB565 base) */
   SCCB_WriteReg(0x42u, 0x08u);   /* COM17: bit3 DSP color bar */
-  SCCB_WriteReg(0x70u, 0xC0u);   /* tp=01: XSC7=1, YSC7=0 (walking-one) */
-  SCCB_WriteReg(0x71u, 0x3Cu);
+  SCCB_WriteReg(0x70u, 0xBAu);   /* tp=01: XSC7=1, YSC7=0 (walking-one) */
+  SCCB_WriteReg(0x71u, 0x35u);
   DWT_DelayMs(200u);
 
   OV7670_FIFO_WRST_Low();
@@ -519,11 +530,11 @@ static void TrialFixedWindowWrite(void)
   OV7670_FIFO_OE_Low();
   ResetReadPointer();
 
-  /* Byte-value histogram over 40960B to verify data was written.
+  /* Byte-value histogram over 38400B to verify data was written.
    * No assumptions about "empty" values — just report what we see. */
   uint16_t cnt[256] = {0u};
   uint16_t distinct = 0u;
-  for (uint32_t i = 0u; i < 40960u; i++)
+  for (uint32_t i = 0u; i < 38400u; i++)
   {
     uint8_t b = ReadFifoByte();
     if (cnt[b] == 0u) distinct++;
@@ -585,10 +596,10 @@ static void TestColorbarFifoData(void)
     const char *label;
   } dirs[] =
   {
-    { 0x40u,         0x3Cu,       "tp=00 XSC7=0 YSC7=0" },
-    { 0x40u | 0x80u, 0x3Cu,       "tp=01 XSC7=1 YSC7=0" },
-    { 0x40u,         0x3Cu | 0x80u, "tp=10 XSC7=0 YSC7=1" },
-    { 0x40u | 0x80u, 0x3Cu | 0x80u, "tp=11 XSC7=1 YSC7=1" },
+    { 0x3Au,         0x35u,       "tp=00 XSC7=0 YSC7=0" },
+    { 0x3Au | 0x80u, 0x35u,       "tp=01 XSC7=1 YSC7=0" },
+    { 0x3Au,         0x35u | 0x80u, "tp=10 XSC7=0 YSC7=1" },
+    { 0x3Au | 0x80u, 0x35u | 0x80u, "tp=11 XSC7=1 YSC7=1" },
   };
 
   bool any_8bar = false;
