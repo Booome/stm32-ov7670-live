@@ -5,7 +5,13 @@
   *          Same test logic as TEST_OV7670_COLORBAR but reads the AL422B FIFO
   *          via TIM3 DMA (RCK = TIM3 CH4 PWM at 1.44 MHz) instead of GPIO
   *          bit-bang.  Reads in 32-byte chunks: DMA normal mode + interrupt
-  *          callback stops TIM3 after exactly 32 RCK pulses.
+  *          callback stops TIM3 after each chunk.
+  *
+  *          @todo  DMA data does not match GPIO bit-bang version.
+  *                 Root cause: TIM3 start/stop per 32-byte chunk generates
+  *                 inaccurate RCK pulse counts, shifting FIFO read pointer.
+  *                 One-pulse mode (TIM_CR1_OPM + RCR) was attempted but
+  *                 hung — likely RRST reset timing incompatible with OPM.
   *
   *          Resolution: QQVGA 160x120 RGB565.
   */
