@@ -475,23 +475,32 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
   }
   debug_printf("  [%s] => %s\n", label, verdict ? "REAL 8-BAR" : "NOT 8-bar");
 
-  /* ---- Phase D: full-frame dump for host-side image reconstruction ----
-   * Re-read the whole frozen frame (120 rows x 320B) and stream each row
-   * as lowercase hex so a script can rebuild the 160x120 RGB565 picture.
-   * Line format: "R%03u:" + 640 hex chars (320B, MSB-first like raw). */
+  /* ---- Phase D: full-frame dump for host-side analysis ----
+   * Re-read the whole frozen frame (120 rows x 320B) and stream the raw
+   * byte sequence, 32 bytes per line preceded by the hex offset of the
+   * first byte: "000: ff 7f fe ff e7 ff e7 ...".  No row markers -- the
+   * byte stream itself carries the true layout to be determined host-side. */
   {
     OV7670_FIFO_OE_High();
     DWT_DelayMs(10u);
     OV7670_FIFO_OE_Low();
     ResetReadPointer();
     debug_printf("  [%s] FRAME_START\n", label);
-    for (uint16_t y = 0u; y < VF_ROWS; y++)
+    uint32_t total = (uint32_t)VF_ROWS * VF_ROW_BYTES;
+    for (uint32_t i = 0u; i < total; i++)
     {
-      debug_printf("R%03u:", (unsigned)y);
-      for (uint16_t i = 0u; i < VF_ROW_BYTES; i++)
+      if (i % 32u == 0u)
       {
-        debug_printf("%02x", (unsigned)ReadFifoByte());
+        debug_printf("%03x: ", (unsigned)(i / 32u));
       }
+      debug_printf("%02x ", (unsigned)ReadFifoByte());
+      if ((i + 1u) % 32u == 0u)
+      {
+        debug_printf("\n");
+      }
+    }
+    if (total % 32u != 0u)
+    {
       debug_printf("\n");
     }
     debug_printf("  [%s] FRAME_END\n", label);
