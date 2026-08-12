@@ -212,7 +212,7 @@ static const struct
   /* ---- Output format ---- */
   { OV7670_REG_TSLB,   0x04u }, /* TSLB: OV output timing           */
   { OV7670_REG_COM7,   0x04u }, /* COM7: VGA + RGB565 (bit2=1 RGB)  */
-  { OV7670_REG_COM3,   0x04u }, /* COM3: down-sampling enable       */
+  { OV7670_REG_COM3,   0x0Cu }, /* COM3: down-sampling + digital zoom enable */
   { OV7670_REG_COM14,  0x1Au }, /* COM14: DCW PCLK + manual scale   */
   { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565       */
   { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                  */
@@ -225,13 +225,14 @@ static const struct
   { OV7670_REG_VSTOP,  0x7Au },
   { OV7670_REG_VREF,   0x0Au },
 
-  /* ---- Scaling (QQVGA 160x120: VGA by DCW down-sample by 4) ----
-   * Official Implementation Guide Table 2-2 QQVGA values. */
-  { OV7670_REG_SCALING_XSC,     0x3Au }, /* XSC: standard QQVGA factor   */
-  { OV7670_REG_SCALING_YSC,     0x35u }, /* YSC: standard QQVGA factor   */
-  { OV7670_REG_SCALING_DCWCTR,  0x22u }, /* DCWCTR: H/V down-sample by 4 */
-  { OV7670_REG_SCALING_PCLK_DIV, 0xF2u }, /* PCLK_DIV: match QQVGA       */
-  { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                  */
+  /* ---- Scaling (160x128: VGA by DCW by2 + digital zoom) ----
+   * VGA (640x480) -> DCW by2 (320x240) -> XSC/YSC digital zoom
+   * (XSC=0x40 -> 0.5x, YSC=0x3C -> 0.533x) -> 160x128. */
+  { OV7670_REG_SCALING_XSC,     0x40u }, /* XSC: 0.5x horizontal (320->160) */
+  { OV7670_REG_SCALING_YSC,     0x3Cu }, /* YSC: 0.533x vertical (240->128) */
+  { OV7670_REG_SCALING_DCWCTR,  0x11u }, /* DCWCTR: V/H by2            */
+  { OV7670_REG_SCALING_PCLK_DIV, 0xF2u }, /* PCLK_DIV: /4, match COM14[2:0]=010 */
+  { OV7670_REG_SCALING_PCLK_DELAY, 0x00u }, /* PCLK_DELAY: 640/4-160=0        */
 
   /* ---- COM10: VSYNC/HREF/PCLK timing ---- */
   { OV7670_REG_COM10, 0x00u },

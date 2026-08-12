@@ -136,19 +136,23 @@ def draw_squares(img, centers, half=3, scale=4):
     return img
 
 
-def sample_bars(stream, nrows, centers, half=3):
+def sample_bars(stream, nrows, centers, half=3, row_bytes=317):
     """Multi-row mean sampling over square regions.
 
     For each center pixel, averages all pixels in [cx-half, cx+half] across
-    nrows rows.  Returns a list of 8 (R, G, B) tuples.
+    nrows rows.  When row_bytes is odd, one byte is dropped (tail) to keep
+    2-byte pixel alignment; when even, all bytes are used.  Returns a list
+    of 8 (R, G, B) tuples.
     """
-    row_w = 317
-    npix = 158
+    row_w = row_bytes
+    odd = row_bytes % 2 == 1
+    usable = row_bytes - 1 if odd else row_bytes
+    npix = usable // 2
     bar8 = []
     for cx in centers:
         sum_r, sum_g, sum_b, count = 0, 0, 0, 0
         for ri in range(nrows):
-            win = stream[ri * row_w : ri * row_w + 316]
+            win = stream[ri * row_w : ri * row_w + usable]
             for dx in range(-half, half + 1):
                 px = cx + dx
                 if 0 <= px < npix:
@@ -184,26 +188,30 @@ def draw_bar5(colors, outpath, w=500, h=200):
     draw_bars(colors, outpath, w=w, h=h, labels=False)
 
 
-def render_all(rows, align_mode):
+def render_all(rows, align_mode, row_bytes=317):
     """Return list of per-row pixel color lists.
 
-    The captured byte stream is split into rows by its 317-byte period first
-    (stream[i*317:(i+1)*317]) -- the printed 320-byte boundaries are NOT the
-    pixel-row boundaries.  We take the first 120 rows (VF_ROWS).  317 is odd,
-    so a 2-byte-per-pixel split needs one byte dropped -> 316 bytes =
-    158 pixels.  Two alignments are tried:
-      - 'tail': drop the LAST byte of the 317-byte row  -> bytes [0:316]
-      - 'head': drop the FIRST byte of the 317-byte row -> bytes [1:317]
+    The captured byte stream is split into rows by its row_bytes period
+    (stream[i*row_bytes:(i+1)*row_bytes]).  When row_bytes is odd, a
+    2-byte-per-pixel split needs one byte dropped, and two alignments are
+    tried:
+      - 'tail': drop the LAST byte of the row  -> bytes [0:row_bytes-1]
+      - 'head': drop the FIRST byte of the row -> bytes [1:row_bytes]
+    When row_bytes is even, no byte is dropped (row_bytes/2 pixels).
     """
     stream = b''.join(rows[r] for r in sorted(rows))
-    nrows = min(len(stream) // 317, 120)
+    nrows = min(len(stream) // row_bytes, 128)
+    odd = row_bytes % 2 == 1
     frame = []
     for i in range(nrows):
-        win = stream[i * 317:(i + 1) * 317]
-        if align_mode == 'head':
-            pix = win[1:317]
-        else:  # 'tail'
-            pix = win[0:316]
+        win = stream[i * row_bytes:(i + 1) * row_bytes]
+        if odd:
+            if align_mode == 'head':
+                pix = win[1:row_bytes]
+            else:  # 'tail'
+                pix = win[0:row_bytes - 1]
+        else:
+            pix = win
         row = []
         for j in range(0, len(pix) - 1, 2):
             row.append(decode_pixel(pix[j], pix[j + 1]))
@@ -224,20 +232,23 @@ def main():
                          'coords (default: 14,34,54,74,96,116,136,153)')
     ap.add_argument('--half', type=int, default=3,
                     help='sampling half-side length in pixels (default: 3)')
+    ap.add_argument('--row-bytes', type=int, default=317,
+                    help='byte period of one row (default: 317 for QVGA)')
     args = ap.parse_args()
 
     centers = [int(x) for x in args.centers.split(',')]
+    row_bytes = args.row_bytes
 
     rows = parse_rows(args.log, tp=args.tp)
     stream = b''.join(rows[r] for r in sorted(rows))
-    nrows = min(len(stream) // 317, 120)
+    nrows = min(len(stream) // row_bytes, 128)
     tp_tag = args.tp if args.tp is not None else 'first'
     print(f'parsed {len(rows)} dump lines (tp={tp_tag}), '
-          f'stream={len(stream)}B -> {nrows} 317B rows')
+          f'stream={len(stream)}B -> {nrows} {row_bytes}B rows')
     os.makedirs(args.outdir, exist_ok=True)
 
     # 1. Raw frame image (natural size)
-    frame = render_all(rows, 'tail')
+    frame = render_all(rows, 'tail', row_bytes=row_bytes)
     frame_path = os.path.join(args.outdir, 'rgb565_be_aligntail.png')
     draw_frame(frame, frame_path)
 
@@ -248,7 +259,8 @@ def main():
                                 'rgb565_be_aligntail_circles.png'))
 
     # 3. Multi-row mean sampling
-    bar8 = sample_bars(stream, nrows, centers, half=args.half)
+    bar8 = sample_bars(stream, nrows, centers, half=args.half,
+                       row_bytes=row_bytes)
     bar5 = [bar8[i] for i in EVAL_IDX]
 
     # 4. bands8 (800x200)

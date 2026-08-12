@@ -132,6 +132,15 @@ Implement a non-weak `__io_putchar()` that calls `HAL_UART_Transmit()` to USART1
   exiting it (e.g., after `WR_Low`).
 - newlib-nano does not support `%f` float formatting by default
 
+## Temporary Analysis Output
+
+- All host-side analysis products (rendered images, decoded frame dumps,
+  segment tables, logs copied from /tmp, etc.) go under the project-local
+  `.temp/` directory (e.g. `.temp/tp10_160x128_be_segments.txt`), so they
+  are reachable via SSH without touching the repo. Do NOT scatter analysis
+  files in `/tmp` only.
+- `.temp/` is gitignored scratch space; keep the repo itself clean.
+
 ## Language Preferences
 
 - Communication: Chinese

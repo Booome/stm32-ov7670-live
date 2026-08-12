@@ -8,12 +8,12 @@
   *          GPIO bit-banged RCK. Each 320B row is verified for vertical-bar
   *          constancy (all rows identical) and frozen-frame stability.
   *
-  *          This separates "colorbar configuration wrong" from
-  *          "pipeline/LCD timing broken".
-  *
-  *          Resolution: QQVGA 160x120 RGB565 (OV7670 official Table 2-2
-  *          down-sample by 4 from VGA).
-  */
+ *          This separates "colorbar configuration wrong" from
+ *          "pipeline/LCD timing broken".
+ *
+ *          Resolution: 160x128 RGB565 (OV7670 QVGA 320x240 -> DCW ->
+ *          XSC/YSC digital zoom, as configured by OV7670_Init()).
+ */
 #include "test_ov7670_colorbar.h"
 #include "test_lcd_common.h"
 #include "pipeline.h"
@@ -31,7 +31,7 @@
 _Static_assert(PIPELINE_WIDTH == LCD_TEST_WIDTH,
               "PIPELINE_WIDTH must equal LCD_TEST_WIDTH (160)");
 _Static_assert(PIPELINE_HEIGHT == LCD_TEST_HEIGHT,
-              "PIPELINE_HEIGHT must equal LCD_TEST_HEIGHT (120)");
+              "PIPELINE_HEIGHT must equal LCD_TEST_HEIGHT (128)");
 _Static_assert(PIPELINE_HALF_SIZE == LCD_TEST_LINE_SIZE,
               "PIPELINE_HALF_SIZE must equal LCD_TEST_LINE_SIZE (320B/row)");
 
@@ -175,15 +175,16 @@ static bool WaitVsyncEdge(bool rising)
 static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
 {
   bool verdict = false;
-  OV7670_Init();   /* our 160x128 scale */
+  OV7670_Init();   /* our 160x128 scale: VGA+DCW by2+XSC/YSC */
 
-  /* Enable colorbar: COM7 bit1 + COM17 bit3 + test_pattern bits.
-   * COM7 base stays VGA+RGB565 (0x04) as configured by OV7670_Init; bit1
-   * adds the color bar without re-selecting QVGA. */
-  SCCB_WriteReg(0x12u, 0x06u);  /* COM7: RGB565 + sensor colorbar (bit1) */
+  /* Enable sensor colorbar only, keeping OV7670_Init()'s VGA 160x128
+   * scale chain intact (COM3=0x0C DCW+DZ, COM14=0x1A manual scale,
+   * DCWCTR=0x11 by2, scale values in XSC/YSC below). COM7 stays
+   * VGA+RGB565 (0x04); bit1 adds the color bar. */
+  SCCB_WriteReg(0x12u, 0x06u);  /* COM7: VGA + RGB565 + sensor colorbar */
   SCCB_WriteReg(0x42u, 0x00u);  /* COM17: no DSP colorbar */
-  SCCB_WriteReg(0x70u, xsc);    /* SCALING_XSC */
-  SCCB_WriteReg(0x71u, ysc);    /* SCALING_YSC */
+  SCCB_WriteReg(0x70u, xsc);    /* SCALING_XSC (bit7 = test_pattern[0]) */
+  SCCB_WriteReg(0x71u, ysc);    /* SCALING_YSC (bit7 = test_pattern[1]) */
 
   /* Disable AWB/AGC/AEC so the colorbar is not "white-balanced" by the
    * auto algorithm. COM8=0x80 keeps only FASTAEC+AECSTEP+BFILT.
@@ -252,7 +253,7 @@ static bool TrialVsyncFrameFull(uint8_t xsc, uint8_t ysc, const char *label)
    * writes, so WR_Low froze the frame. Resetting OV7670 stops PCLK (=WCK),
    * which is the AL422B DRAM refresh clock - losing it corrupts FIFO data. */
 #define VF_ROW_BYTES 320u   /* 160px * 2B */
-#define VF_ROWS 120u
+#define VF_ROWS      128u
   uint8_t *line_ref = s_share_buf;                /* row 0 reference */
   uint8_t *line_cur = s_share_buf + VF_ROW_BYTES; /* current row */
 
@@ -516,7 +517,9 @@ static void TestColorbarFifoData(void)
   TEST_ASSERT_EQUAL_UINT16(LCD_TEST_LINE_SIZE, PIPELINE_HALF_SIZE);
 
   /* Datasheet (XSC[7], YSC[7]) test_pattern table is ambiguous on bit
-   * order: try all four combinations to find the real 8-bar. */
+   * order: testing only the fixed target tp=10 (XSC7=0 YSC7=1).
+   * Scale values come from OV7670_Init() (XSC=0x40, YSC=0x3C) so the
+   * 160x128 chain is preserved; only YSC7 is set for the test pattern. */
   const struct
   {
     uint8_t xsc;
@@ -524,10 +527,7 @@ static void TestColorbarFifoData(void)
     const char *label;
   } dirs[] =
   {
-    { 0x3Au,         0x35u,       "tp=00 XSC7=0 YSC7=0" },
-    { 0x3Au | 0x80u, 0x35u,       "tp=01 XSC7=1 YSC7=0" },
-    { 0x3Au,         0x35u | 0x80u, "tp=10 XSC7=0 YSC7=1" },
-    { 0x3Au | 0x80u, 0x35u | 0x80u, "tp=11 XSC7=1 YSC7=1" },
+    { 0x40u, 0x3Cu | 0x80u, "tp=10 XSC7=0 YSC7=1" },
   };
 
   bool any_8bar = false;
