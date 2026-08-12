@@ -58,9 +58,35 @@ static void ReadStart(void)
     s_abort_pending = false;
   }
 
-  /* Reset FIFO read pointer */
-  OV7670_FIFO_RRST_Low();
-  OV7670_FIFO_RRST_High();
+  /* Reset FIFO read pointer — AL422B requires RRST low + at least one RCK
+   * falling edge to reset the read address. Without this pulse the read
+   * pointer never returns to 0, causing frame-to-frame drift (dynamic tearing).
+   * TIM3 is stopped at this point (FrameDone or abort path), so RCK must be
+   * driven as GPIO for the pulse.
+   *
+   * BRR writes before each GPIO_Init ensure ODR matches the expected
+   * pin level, preventing a glitch during the AF↔GPIO mode transition. */
+  {
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Pin = OV7670_FIFO_RCK_Pin;
+    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+
+    /* Switch to GPIO output: pre-clear ODR so no glitch on mode change */
+    OV7670_FIFO_RCK_GPIO_Port->BRR = OV7670_FIFO_RCK_Pin;
+    gpio.Mode = GPIO_MODE_OUTPUT_PP;
+    HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
+
+    /* AL422B read-pointer reset sequence */
+    HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_SET);
+    OV7670_FIFO_RRST_Low();
+    HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_RESET);  /* falling edge while RRST low -> reset */
+    OV7670_FIFO_RRST_High();
+
+    /* Restore RCK to AF: pre-clear ODR to match AF idle low */
+    OV7670_FIFO_RCK_GPIO_Port->BRR = OV7670_FIFO_RCK_Pin;
+    gpio.Mode = GPIO_MODE_AF_PP;
+    HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
+  }
 
   /* Enable FIFO output */
   OV7670_FIFO_OE_Low();
@@ -152,8 +178,11 @@ void Pipeline_Poll(void)
 
 static void OnVsync(void)
 {
-  /* Always reset FIFO write pointer and enable write on every VSYNC. */
+  /* Reset FIFO write pointer: WRST must stay low for >= 1 WCLK cycle
+   * (WCLK = PCLK = 2MHz, T_WCLK = 500ns). 1us DWT delay guarantees capture.
+   * DWT_DelayUs is CYCCNT-based, ISR-safe (no SysTick / scheduler dependency). */
   OV7670_FIFO_WRST_Low();
+  DWT_DelayUs(1u);
   OV7670_FIFO_WRST_High();
   OV7670_FIFO_WR_High();
 
