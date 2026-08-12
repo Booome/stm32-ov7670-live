@@ -91,8 +91,8 @@ static inline void OV7670_FIFO_WR_Low(void)
 /* ---- Public API ---- */
 
 /* ---- Tunable image parameters (may need per-module adjustment) ----
- * These values are used in OV7670_Init() and shared by all callers.
- * Unity AWB gain = 0x40.  Contrast default = 0x40. */
+ * AWB gain registers do not affect sensor colorbar (injected after AWB);
+ * they affect real-camera images only.  Contrast default = 0x40. */
 #define OV7670_AWB_GGAIN    0x40u
 #define OV7670_AWB_BLUE     0x40u
 #define OV7670_AWB_RED      0x40u
