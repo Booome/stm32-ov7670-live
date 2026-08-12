@@ -28,8 +28,8 @@ static DWT_DelayHandle s_vsync_delay;
 static uint8_t s_pipeline_buffer[PIPELINE_BUFFER_SIZE];
 
 /* Forward declarations */
-static void DmaHalfCpltCb(DMA_HandleTypeDef *hdma);
-static void DmaCpltCb(DMA_HandleTypeDef *hdma);
+static void OnDmaHalfCplt(DMA_HandleTypeDef *hdma);
+static void OnDmaCplt(DMA_HandleTypeDef *hdma);
 
 /* ---- SPI TX DMA LL helpers (no HAL callbacks, no NVIC) ----
  *
@@ -44,7 +44,7 @@ static void DmaCpltCb(DMA_HandleTypeDef *hdma);
 /** @brief  Start SPI TX DMA with LL registers (ISR-safe, ~15 cycles) */
 static inline void SpiTxDma_Start(uint8_t *buf, uint16_t len)
 {
-  DMA1->IFCR = DMA_IFCR_CTCIF5 | DMA_IFCR_CHTIF5 | DMA_IFCR_CGIF5;
+  DMA1->IFCR = DMA_IFCR_CGIF5;
   DMA1_Channel5->CMAR = (uint32_t)buf;
   DMA1_Channel5->CNDTR = (uint32_t)len;
   DMA1_Channel5->CCR |= DMA_CCR_EN;
@@ -63,6 +63,19 @@ static inline void SpiTxDma_WaitDone(void)
   while (SPI2->SR & SPI_SR_BSY)
   {
   }
+}
+
+/** @brief  Restore SPI2 1-line bidirectional TX mode.
+  *         HAL_SPI_Transmit (blocking, used by LCD_SetAddrWindow) clears
+  *         BIDIMODE+BIDIOE+SPE; BIDIMODE/BIDIOE require SPE=0 to change
+  *         (RM0008 §25.3.3).  Also clears leftover OVR. */
+static inline void SpiRestore1LineTx(void)
+{
+  __HAL_SPI_DISABLE(&hspi2);
+  SET_BIT(hspi2.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_BIDIOE);
+  __HAL_SPI_ENABLE(&hspi2);
+  (void)SPI2->DR;
+  (void)SPI2->SR;
 }
 
 /**
@@ -103,21 +116,13 @@ static void ReadStart(void)
 
   LCD_SetAddrWindow(0u, 0u, PIPELINE_WIDTH - 1u, PIPELINE_HEIGHT - 1u);
 
-  /* Restore SPI 1-line bidirectional TX mode.
-   * HAL_SPI_Transmit (blocking) clears BIDIMODE+BIDIOE+SPE.
-   * BIDIMODE/BIDIOE require SPE=0 to change (RM0008 §25.3.3). */
-  {
-    __HAL_SPI_DISABLE(&hspi2);
-    SET_BIT(hspi2.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_BIDIOE);
-    __HAL_SPI_ENABLE(&hspi2);
-    (void)SPI2->DR;
-    (void)SPI2->SR;
-  }
+  /* LCD_SetAddrWindow used blocking HAL_SPI_Transmit: restore 1-line TX */
+  SpiRestore1LineTx();
 
   s_bytes_sent = 0u;
 
-  hdma_tim3_ch4_up.XferHalfCpltCallback = DmaHalfCpltCb;
-  hdma_tim3_ch4_up.XferCpltCallback = DmaCpltCb;
+  hdma_tim3_ch4_up.XferHalfCpltCallback = OnDmaHalfCplt;
+  hdma_tim3_ch4_up.XferCpltCallback = OnDmaCplt;
   HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
                     (uint32_t)OV7670_DATA_ADDR,
                     (uint32_t)s_pipeline_buffer,
@@ -159,9 +164,7 @@ void Pipeline_Init(void)
 
   DMA1_Channel5->CPAR = (uint32_t)&hspi2.Instance->DR;
 
-  __HAL_SPI_DISABLE(&hspi2);
-  SET_BIT(hspi2.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_BIDIOE);
-  __HAL_SPI_ENABLE(&hspi2);
+  SpiRestore1LineTx();
 
   SET_BIT(hspi2.Instance->CR2, SPI_CR2_TXDMAEN | SPI_CR2_ERRIE);
   HAL_NVIC_DisableIRQ(DMA1_Channel5_IRQn);
@@ -205,8 +208,9 @@ static void OnVsync(void)
   DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
 }
 
-static void OnDmaHalfCplt(void)
+static void OnDmaHalfCplt(DMA_HandleTypeDef *hdma)
 {
+  (void)hdma;
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
     return;
@@ -217,8 +221,9 @@ static void OnDmaHalfCplt(void)
   s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
-static void OnDmaCplt(void)
+static void OnDmaCplt(DMA_HandleTypeDef *hdma)
 {
+  (void)hdma;
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
     return;
@@ -232,18 +237,6 @@ static void OnDmaCplt(void)
   {
     s_state = PIPELINE_STATE_FRAME_DONE;
   }
-}
-
-static void DmaHalfCpltCb(DMA_HandleTypeDef *hdma)
-{
-  (void)hdma;
-  OnDmaHalfCplt();
-}
-
-static void DmaCpltCb(DMA_HandleTypeDef *hdma)
-{
-  (void)hdma;
-  OnDmaCplt();
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
