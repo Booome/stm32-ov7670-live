@@ -527,7 +527,7 @@ static void TestColorbarFifoData(void)
     const char *label;
   } dirs[] =
   {
-    { 0x40u, 0x3Cu | 0x80u, "tp=10 XSC7=0 YSC7=1" },
+    { 0x40u, 0x3Cu | 0x80u, "tp=01 XSC7=0 YSC7=1" },
   };
 
   bool any_8bar = false;

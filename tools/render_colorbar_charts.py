@@ -32,15 +32,17 @@ STD_8 = [(255, 255, 255), (255, 255, 0), (0, 255, 255), (0, 255, 0),
 EVAL_IDX = (0, 7, 5, 3, 6)  # White Black Red Green Blue positions
 
 
-def parse_rows(path, tp=None):
+def parse_rows(path, tp=None, tag=None):
     """Return {byte_offset: 32 bytes} for one complete frame dump.
 
     Hexdump format: "NNNNNNNN: b0 b1 ... b31" with NNNNNNNN the 8-hex-digit
     byte offset.  Every line between FRAME_START and FRAME_END belongs to the
     same frame; concatenating the dict values in key order rebuilds the
     raw byte stream.  If tp is given (e.g. '10'), only the frame whose
-    FRAME_START tag is "[tp=10 ...] FRAME_START" is selected; otherwise the
-    first frame dump in the log is used.
+    FRAME_START tag is "[tp=10 ...]" is selected; if tag is given, the
+    FRAME_START line must also contain the substring.  Use --tag to
+    disambiguate frames that share the same tp value.  If neither is given,
+    the first frame dump in the log is used.
     """
     rows = {}
     on = False
@@ -52,6 +54,9 @@ def parse_rows(path, tp=None):
                 m = re.match(r'\[tp=(\d+)\s', s)
                 frm_tp = m.group(1) if m else None
                 if tp is not None and frm_tp != tp:
+                    on = False
+                    continue
+                if tag is not None and tag not in s:
                     on = False
                     continue
                 rows = {}
@@ -227,6 +232,9 @@ def main():
     ap.add_argument('--tp', default=None,
                     help='select test pattern frame by its "[tp=NN ...]" tag '
                          '(default: first frame)')
+    ap.add_argument('--tag', default=None,
+                    help='further filter frame by substring in FRAME_START line '
+                         '(used with --tp to disambiguate frames sharing the same tp)')
     ap.add_argument('--centers', default='14,34,54,74,96,116,136,153',
                     help='sampling center positions, comma-separated pixel '
                          'coords (default: 14,34,54,74,96,116,136,153)')
@@ -239,7 +247,7 @@ def main():
     centers = [int(x) for x in args.centers.split(',')]
     row_bytes = args.row_bytes
 
-    rows = parse_rows(args.log, tp=args.tp)
+    rows = parse_rows(args.log, tp=args.tp, tag=args.tag)
     stream = b''.join(rows[r] for r in sorted(rows))
     nrows = min(len(stream) // row_bytes, 128)
     tp_tag = args.tp if args.tp is not None else 'first'
