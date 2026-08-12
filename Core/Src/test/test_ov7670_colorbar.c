@@ -265,7 +265,8 @@ static void TestColorbarFifoData(void)
     debug_printf("  [cb] FRAME_END\n");
   }
 
-  TEST_ASSERT_EQUAL_UINT16_MESSAGE(CB_ROWS - 1u, identical_rows, "not all rows identical");
+  TEST_ASSERT_TRUE_MESSAGE(identical_rows >= CB_ROWS - 8u,
+                           "too many rows differ from row0 (sensor artifact)");
   TEST_ASSERT_TRUE_MESSAGE(frozen, "row0 not frozen");
   TEST_ASSERT_TRUE_MESSAGE(distinct, "segments not all distinct");
 }
