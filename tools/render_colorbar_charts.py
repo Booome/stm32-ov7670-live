@@ -141,7 +141,7 @@ def draw_squares(img, centers, half=3, scale=4):
     return img
 
 
-def sample_bars(stream, nrows, centers, half=3, row_bytes=317):
+def sample_bars(stream, nrows, centers, half=3, row_bytes=320):
     """Multi-row mean sampling over square regions.
 
     For each center pixel, averages all pixels in [cx-half, cx+half] across
@@ -193,7 +193,7 @@ def draw_bar5(colors, outpath, w=500, h=200):
     draw_bars(colors, outpath, w=w, h=h, labels=False)
 
 
-def render_all(rows, align_mode, row_bytes=317):
+def render_all(rows, align_mode, row_bytes=320):
     """Return list of per-row pixel color lists.
 
     The captured byte stream is split into rows by its row_bytes period
@@ -240,8 +240,8 @@ def main():
                          'coords (default: 14,34,54,74,96,116,136,153)')
     ap.add_argument('--half', type=int, default=3,
                     help='sampling half-side length in pixels (default: 3)')
-    ap.add_argument('--row-bytes', type=int, default=317,
-                    help='byte period of one row (default: 317 for QVGA)')
+    ap.add_argument('--row-bytes', type=int, default=320,
+                    help='byte period of one row (default: 320 for 160px RGB565)')
     args = ap.parse_args()
 
     centers = [int(x) for x in args.centers.split(',')]
