@@ -118,6 +118,54 @@ Implement a non-weak `__io_putchar()` that calls `HAL_UART_Transmit()` to USART1
 - Do NOT use `debug_printf` in interrupt context (blocking UART)
 - newlib-nano does not support `%f` float formatting by default
 
+## Temporary Analysis Output
+
+- All host-side analysis products (rendered images, decoded frame dumps,
+  segment tables, logs copied from /tmp, etc.) go under the project-local
+  `.temp/` directory (e.g. `.temp/tp10_160x128_be_segments.txt`), so they
+  are reachable via SSH without touching the repo. Do NOT scatter analysis
+  files in `/tmp` only.
+- `.temp/` is gitignored scratch space; keep the repo itself clean.
+
+## Colorbar Test Workflow
+
+### Capture & Render Pipeline
+
+1. **Build + Flash**: `cmake --build --preset Debug && st-flash --reset write build/Debug/stm32-ov7670-live.bin 0x08000000`
+2. **Capture serial output** (MUST use background mode to survive terminal close):
+   `setsid nohup python3 .opencode/skills/serial-capture/scripts/serial_capture.py --port /dev/ttyACM0 --baud 115200 --output /tmp/opencode/capN.log --duration <sec> > /tmp/opencode/scapN.out 2>&1 < /dev/null & disown`
+3. **Render color charts** with `tools/render_colorbar_charts.py`:
+   ```bash
+   python3 tools/render_colorbar_charts.py /tmp/opencode/capN.log \
+     --tp 01 --tag "<substring>" --row-bytes 320 \
+     --centers <comma_separated> -o .temp/<outdir>
+   ```
+   - `--tp` selects the test pattern frame by its `[tp=NN ...]` tag
+   - `--tag` further filters by substring in the FRAME_START line (use when multiple frames share the same tp)
+   - `--row-bytes 320` for VGA+DCW 160x128 mode (QVGA uses 317)
+   - `--centers` are the sampling pixel positions for 8 color bands
+   - Outputs: `bands8.png`, `bands5.png`, `rgb565_be_aligntail.png` (+ circles overlay)
+
+### Test Register Parameter Scanning
+
+When testing multiple register values (e.g. PCLK_DELAY, HSTART/HSTOP), add multiple entries to `dirs[]` in `TestColorbarFifoData()`:
+```c
+const struct { uint8_t xsc; uint8_t ysc; uint8_t param; const char *label; } dirs[] = {
+  { 0x40u, 0x3Cu|0x80u, 0x00u, "tp=01 delay=00" },
+  { 0x40u, 0x3Cu|0x80u, 0x01u, "tp=01 delay=01" },
+  // ...
+};
+```
+Use `--tag delay=00`, `--tag delay=01`, etc. to render each frame separately.
+
+### Pixel-Level Analysis
+
+For edge artifact detection, use `tools/scan_pclk_delay.py`:
+```bash
+python3 tools/scan_pclk_delay.py /tmp/opencode/capN.log --row-bytes 320
+```
+Outputs a comparison table of left/right edge artifact widths across frames.
+
 ## Language Preferences
 
 - Communication: Chinese
