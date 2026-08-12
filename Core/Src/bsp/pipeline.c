@@ -14,20 +14,12 @@ extern TIM_HandleTypeDef htim3;
 extern SPI_HandleTypeDef hspi2;
 extern DMA_HandleTypeDef hdma_tim3_ch4_up;
 
-/* VSYNC delay: 6ms.  Avg write rate is 1.23MB/s (320B/260us row), read rate
- * is 1.44MB/s.  Delaying read start by 6ms gives the write pointer a lead of
- * 6ms * 1.23MB/s = 7.4KB, which the read (0.21MB/s faster) cannot close within
- * the 28.4ms frame read (needs ~35ms), so the read never overtakes the write.
- * Read completes at 6+28.4 = 34.4ms, just inside the 34.8ms frame period, so
- * every VSYNC can start a fresh frame read (no dropped frames -> ~28.7fps).
- * Bounds: delay must be > 4.86ms (write lead must survive the whole frame
- * read) and <= 6.36ms (read must finish within one frame period). */
+/* VSYNC delay: 6ms. */
 #define PIPELINE_VSYNC_DELAY_US  6000u
 
 /* Module state */
 static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_DISABLED;
 static volatile uint32_t s_bytes_sent;
-static volatile bool s_spi_dma_busy;
 static volatile bool s_abort_pending;
 static volatile uint32_t s_frame_count;
 static DWT_DelayHandle s_vsync_delay;
@@ -35,20 +27,49 @@ static DWT_DelayHandle s_vsync_delay;
 /* Frame buffer: 640 bytes, 2 x 320B ping-pong */
 static uint8_t s_pipeline_buffer[PIPELINE_BUFFER_SIZE];
 
-/* Forward declarations for DMA callback wrappers */
+/* Forward declarations */
 static void DmaHalfCpltCb(DMA_HandleTypeDef *hdma);
 static void DmaCpltCb(DMA_HandleTypeDef *hdma);
 
+/* ---- SPI TX DMA LL helpers (no HAL callbacks, no NVIC) ----
+ *
+ * SPI DMA (DMA1_Channel5) completes 320B in ~142us @ 18MHz SPI.
+ * Camera DMA half-buffer takes ~222us @ 1.44MHz.  The SPI DMA always
+ * finishes before the next Camera DMA callback, so we can busy-wait
+ * in the ISR with near-zero overhead.
+ *
+ * All one-time setup is in Pipeline_Init; per-transfer restart is
+ * in SpiTxDma_Start (~15 cycles, ISR-safe). */
+
+/** @brief  Start SPI TX DMA with LL registers (ISR-safe, ~15 cycles) */
+static inline void SpiTxDma_Start(uint8_t *buf, uint16_t len)
+{
+  DMA1->IFCR = DMA_IFCR_CTCIF5 | DMA_IFCR_CHTIF5 | DMA_IFCR_CGIF5;
+  DMA1_Channel5->CMAR = (uint32_t)buf;
+  DMA1_Channel5->CNDTR = (uint32_t)len;
+  DMA1_Channel5->CCR |= DMA_CCR_EN;
+}
+
+/** @brief  Wait for SPI TX DMA to finish.
+  *         Polls CNDTR (not CCR EN — EN is not reliably cleared by hw when
+  *         TXDMAEN is permanently set).  Manually clears EN after CNDTR=0,
+  *         then waits for SPI BSY to ensure the wire is idle. */
+static inline void SpiTxDma_WaitDone(void)
+{
+  while (DMA1_Channel5->CNDTR > 0u)
+  {
+  }
+  DMA1_Channel5->CCR &= ~DMA_CCR_EN;
+  while (SPI2->SR & SPI_SR_BSY)
+  {
+  }
+}
+
 /**
   * @brief   Start FIFO read pipeline
-  *
-  *          Called after VSYNC delay expires. Sets up FIFO read pointer,
-  *          LCD address window, then starts TIM3 PWM + Camera DMA.
   */
 static void ReadStart(void)
 {
-  /* Guard: if the previous frame's DMA/PWM is still running because VSYNC
-   * preempted FrameDone, stop it before starting the new frame. */
   if (s_abort_pending)
   {
     HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
@@ -58,52 +79,43 @@ static void ReadStart(void)
     s_abort_pending = false;
   }
 
-  /* Reset FIFO read pointer — AL422B requires RRST low + at least one RCK
-   * falling edge to reset the read address. Without this pulse the read
-   * pointer never returns to 0, causing frame-to-frame drift (dynamic tearing).
-   * TIM3 is stopped at this point (FrameDone or abort path), so RCK must be
-   * driven as GPIO for the pulse.
-   *
-   * BRR writes before each GPIO_Init ensure ODR matches the expected
-   * pin level, preventing a glitch during the AF↔GPIO mode transition. */
+  /* Reset FIFO read pointer: AL422B requires RRST low + RCK falling edge */
   {
     GPIO_InitTypeDef gpio = {0};
     gpio.Pin = OV7670_FIFO_RCK_Pin;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
 
-    /* Switch to GPIO output: pre-clear ODR so no glitch on mode change */
     OV7670_FIFO_RCK_GPIO_Port->BRR = OV7670_FIFO_RCK_Pin;
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
     HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
 
-    /* AL422B read-pointer reset sequence */
     HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_SET);
     OV7670_FIFO_RRST_Low();
-    HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_RESET);  /* falling edge while RRST low -> reset */
+    HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_RESET);
     OV7670_FIFO_RRST_High();
 
-    /* Restore RCK to AF: pre-clear ODR to match AF idle low */
     OV7670_FIFO_RCK_GPIO_Port->BRR = OV7670_FIFO_RCK_Pin;
     gpio.Mode = GPIO_MODE_AF_PP;
     HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
   }
 
-  /* Enable FIFO output */
   OV7670_FIFO_OE_Low();
 
-  /* Set LCD address window (leaves CS low, DC high for pixel stream) */
   LCD_SetAddrWindow(0u, 0u, PIPELINE_WIDTH - 1u, PIPELINE_HEIGHT - 1u);
 
-  /* Reset byte counter */
-  s_bytes_sent = 0u;
-  s_spi_dma_busy = false;
+  /* Restore SPI 1-line bidirectional TX mode.
+   * HAL_SPI_Transmit (blocking) clears BIDIMODE+BIDIOE+SPE.
+   * BIDIMODE/BIDIOE require SPE=0 to change (RM0008 §25.3.3). */
+  {
+    __HAL_SPI_DISABLE(&hspi2);
+    SET_BIT(hspi2.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_BIDIOE);
+    __HAL_SPI_ENABLE(&hspi2);
+    (void)SPI2->DR;
+    (void)SPI2->SR;
+  }
 
-  /*
-   * Start Camera DMA: GPIOA->IDR -> s_pipeline_buffer[640], Circular
-   *
-   * Set callback function pointers before starting DMA.
-   * TIM3 CC4 DMA request triggers one transfer per RCK cycle.
-   */
+  s_bytes_sent = 0u;
+
   hdma_tim3_ch4_up.XferHalfCpltCallback = DmaHalfCpltCb;
   hdma_tim3_ch4_up.XferCpltCallback = DmaCpltCb;
   HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
@@ -111,35 +123,23 @@ static void ReadStart(void)
                     (uint32_t)s_pipeline_buffer,
                     PIPELINE_BUFFER_SIZE);
 
-  /* Start TIM3 CH4 PWM (RCK 1.44MHz) */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
   s_state = PIPELINE_STATE_FRAME_CAPTURING;
 }
 
-/**
-  * @brief   Complete frame capture and return to IDLE
-  */
 static void FrameDone(void)
 {
-  /* Wait for last SPI DMA to finish */
-  while (s_spi_dma_busy)
-  {
-  }
+  SpiTxDma_WaitDone();
 
-  /* Stop TIM3 CH4 PWM */
   HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
-
-  /* Stop Camera DMA */
   HAL_DMA_Abort(&hdma_tim3_ch4_up);
 
-  /* Disable FIFO output, raise CS, stop FIFO write */
   OV7670_FIFO_OE_High();
   LCD_CS_High();
   OV7670_FIFO_WR_Low();
 
   s_frame_count++;
-
   s_state = PIPELINE_STATE_IDLE;
 }
 
@@ -147,8 +147,24 @@ void Pipeline_Init(void)
 {
   s_state = PIPELINE_STATE_IDLE;
   s_bytes_sent = 0u;
-  s_spi_dma_busy = false;
   s_frame_count = 0u;
+
+  /* Pre-configure SPI2 TX DMA (DMA1_Channel5) for LL operation.
+   *
+   * CPAR: HAL_DMA_Init (CubeMX) does NOT set CPAR.  Must be set once.
+   * CCR:  HAL_DMA_Init set DIR/MINC/PSIZE/MSIZE/MODE/PRIORITY.
+   *       No interrupt enables (we poll).
+   * CR2:  TXDMAEN + ERRIE permanently on (HAL clears on completion).
+   * NVIC: off — we poll CCR EN + BSY. */
+
+  DMA1_Channel5->CPAR = (uint32_t)&hspi2.Instance->DR;
+
+  __HAL_SPI_DISABLE(&hspi2);
+  SET_BIT(hspi2.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_BIDIOE);
+  __HAL_SPI_ENABLE(&hspi2);
+
+  SET_BIT(hspi2.Instance->CR2, SPI_CR2_TXDMAEN | SPI_CR2_ERRIE);
+  HAL_NVIC_DisableIRQ(DMA1_Channel5_IRQn);
 }
 
 Pipeline_StateTypeDef Pipeline_GetState(void)
@@ -178,24 +194,14 @@ void Pipeline_Poll(void)
 
 static void OnVsync(void)
 {
-  /* Reset FIFO write pointer: WRST must stay low for >= 1 WCLK cycle
-   * (WCLK = PCLK = 2MHz, T_WCLK = 500ns). 1us DWT delay guarantees capture.
-   * DWT_DelayUs is CYCCNT-based, ISR-safe (no SysTick / scheduler dependency). */
   OV7670_FIFO_WRST_Low();
   DWT_DelayUs(1u);
   OV7670_FIFO_WRST_High();
   OV7670_FIFO_WR_High();
 
-  /* Flag if the previous frame's read was left running (state != IDLE), so
-   * ReadStart cleans up its DMA/PWM before starting this frame. */
   s_abort_pending = (s_state != PIPELINE_STATE_IDLE);
 
-  /* Unconditionally start a new frame read: no IDLE-state gating, so no
-   * frames are dropped.  In normal timing the read finishes inside the frame
-   * period (see PIPELINE_VSYNC_DELAY_US) and state is already IDLE here. */
   s_state = PIPELINE_STATE_FRAME_START;
-
-  /* Start non-blocking delay */
   DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
 }
 
@@ -206,9 +212,8 @@ static void OnDmaHalfCplt(void)
     return;
   }
 
-  /* Buffer A [0..319] ready, send via SPI DMA */
-  s_spi_dma_busy = true;
-  HAL_SPI_Transmit_DMA(&hspi2, s_pipeline_buffer, PIPELINE_HALF_SIZE);
+  SpiTxDma_WaitDone();
+  SpiTxDma_Start(s_pipeline_buffer, PIPELINE_HALF_SIZE);
   s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
@@ -219,9 +224,8 @@ static void OnDmaCplt(void)
     return;
   }
 
-  /* Buffer B [320..639] ready, send via SPI DMA */
-  s_spi_dma_busy = true;
-  HAL_SPI_Transmit_DMA(&hspi2, &s_pipeline_buffer[PIPELINE_HALF_SIZE], PIPELINE_HALF_SIZE);
+  SpiTxDma_WaitDone();
+  SpiTxDma_Start(&s_pipeline_buffer[PIPELINE_HALF_SIZE], PIPELINE_HALF_SIZE);
   s_bytes_sent += PIPELINE_HALF_SIZE;
 
   if (s_bytes_sent >= PIPELINE_FRAME_SIZE)
@@ -229,8 +233,6 @@ static void OnDmaCplt(void)
     s_state = PIPELINE_STATE_FRAME_DONE;
   }
 }
-
-/* ---- DMA callback wrappers (function pointer signature) ---- */
 
 static void DmaHalfCpltCb(DMA_HandleTypeDef *hdma)
 {
@@ -244,16 +246,6 @@ static void DmaCpltCb(DMA_HandleTypeDef *hdma)
   OnDmaCplt();
 }
 
-/* ---- HAL weak function overrides ---- */
-
-/** @brief  SPI DMA transmit complete callback */
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-  (void)hspi;
-  s_spi_dma_busy = false;
-}
-
-/** @brief  GPIO EXTI callback (VSYNC frame sync) */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin != OV7670_VSYNC_Pin)
