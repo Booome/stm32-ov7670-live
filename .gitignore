@@ -1,5 +1,6 @@
 .codegraph/
 .worktrees/
+.temp/
 build/
 
 # Python
