@@ -110,19 +110,20 @@ static void TestOv7670StableRegisters(void)
 
 static void TestOv7670Colorbar(void)
 {
-  /* Enable: COM7 bit1, COM17 bit3, XSC bit7 (test_pattern "10" = 8-bar) */
+  /* Enable: sensor colorbar via COM7 bit1, COM8 disables AGC/AEC/AWB,
+   * test_pattern (YSC7 only) = 01 (8-bar). */
   OV7670_EnableColorBar();
-  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_COM7) & 0x02u);
-  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_COM17) & 0x08u);
-  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_XSC) & 0x80u);
-  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_YSC) & 0x80u);
+  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_COM7) & 0x02u);   /* colorbar on */
+  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_COM8) & 0x07u);      /* AGC/AEC/AWB off */
+  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_XSC) & 0x80u);/* XSC7=0 */
+  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_YSC) & 0x80u); /* YSC7=1 */
 
-  /* Disable: all color bar bits cleared, defaults restored */
+  /* Disable: restore COM7, COM8 (AGC+AEC on), XSC/YSC defaults */
   OV7670_DisableColorBar();
-  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_COM7) & 0x02u);
-  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_COM17) & 0x08u);
-  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_XSC) & 0x80u);
-  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_YSC) & 0x80u);
+  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_COM7) & 0x02u);      /* colorbar off */
+  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_COM8) & 0x03u);  /* AGC+AEC on */
+  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_XSC) & 0x80u);/* XSC7=0 (default) */
+  TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_YSC) & 0x80u);/* YSC7=0 (default) */
 }
 
 /* ---- Test: hardware 3A engine running ---- */

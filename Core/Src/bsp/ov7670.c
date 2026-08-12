@@ -176,17 +176,19 @@
 #define OV7670_REG_MAGIC_B3      0xB3u
 #define OV7670_REG_MAGIC_B8      0xB8u
 
-/* COM7 bit1 = color bar test mode */
-#define OV7670_COM7_COLOR_BAR    0x02u
-#define OV7670_COM7_DEFAULT      0x14u
+/* COM7 bits — datasheet p.13:
+ *   Bit[5:3]=000 VGA, Bit[2]=1 RGB, Bit[1]=0/1 colorbar, Bit[0]=0 (RGB).
+ *   Note: COM7=0x04 is VGA+RGB565; 0x14 sets Bit[4]=1 → QVGA (wrong). */
+#define OV7670_COM7_DEFAULT       0x04u  /* VGA + RGB565 */
+#define OV7670_COM7_COLOR_BAR     0x02u  /* Bit[1]: sensor colorbar (pre-DSP, Test Pattern Generator) */
 
-/* COM17 bit3 = DSP color bar enable */
-#define OV7670_COM17_DSP_COLOR_BAR  0x08u
-#define OV7670_COM17_DEFAULT        0x00u
+/* COM17 — datasheet p.19: Bit[3]=DSP colorbar (post-processing, bypasses DSP).
+ * Sensor colorbar (COM7 bit1) is preferred — cleaner colors, full pipeline. */
+#define OV7670_COM17_DEFAULT      0x00u
 
-/* SCALING_XSC bit7 = test_pattern[0], SCALING_YSC bit7 = test_pattern[1].
- * test_pattern (XSC7,YSC7) = 11: 8-bar color bar (verified on hardware) */
-#define OV7670_XSC_TEST_PATTERN   0x80u
+/* test_pattern (XSC7,YSC7) — Implementation Guide p.57:
+ *   00=None  01=Shifting"1"  10=8-bar  11=Fade-to-gray.
+ * Empirically verified: XSC7=0 YSC7=1 produces 8-bar (bit order reversed). */
 #define OV7670_YSC_TEST_PATTERN   0x80u
 #define OV7670_YSC_DEFAULT        0x3Cu
 #define OV7670_XSC_DEFAULT        0x40u
@@ -216,6 +218,7 @@ static const struct
   { OV7670_REG_COM14,  0x1Au }, /* COM14: DCW PCLK + manual scale   */
   { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565       */
   { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                  */
+  { OV7670_REG_COM17, 0x00u }, /* COM17: no DSP colorbar; sensor colorbar via COM7 bit1 */
 
   /* ---- VGA window (sensor readout area, OmniVision default) ---- */
   { OV7670_REG_HSTART, 0x13u },
@@ -431,21 +434,22 @@ bool OV7670_Init(void)
 
 void OV7670_EnableColorBar(void)
 {
-  /* COM7 bit1: color bar enable */
+  /* Sensor colorbar (COM7 bit1): 8-bar test pattern via Test Pattern Generator.
+   * Goes through full DSP pipeline (gamma, color matrix) — cleaner than DSP colorbar.
+   * Disable AGC/AEC/AWB so the colorbar is not "white-balanced" by auto algorithms. */
   SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT | OV7670_COM7_COLOR_BAR);
+  SCCB_WriteReg(OV7670_REG_COM8, 0x80u);  /* FASTAEC+AECSTEP+BFILT only */
 
-  /* COM17 bit3: DSP color bar enable */
-  SCCB_WriteReg(OV7670_REG_COM17, OV7670_COM17_DEFAULT | OV7670_COM17_DSP_COLOR_BAR);
-
-  /* test_pattern = "10" (8-bar): XSC bit7 = 1, YSC bit7 = 0 */
-  SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT | OV7670_XSC_TEST_PATTERN);
-  SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
+  /* test_pattern = 01 (8-bar): XSC7=0, YSC7=1 (empirically verified on hardware).
+   * Datasheet bit order is ambiguous; this orientation produces real 8-bar. */
+  SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT | OV7670_YSC_TEST_PATTERN);
 }
 
 void OV7670_DisableColorBar(void)
 {
   SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT);
-  SCCB_WriteReg(OV7670_REG_COM17, OV7670_COM17_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_COM8, 0xE5u);  /* restore AGC+AEC, AWB off */
   SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT);
   SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
 }
