@@ -20,11 +20,20 @@
 #ifdef TEST_OV7670
 #include "test_ov7670.h"
 #endif
+#ifdef TEST_OV7670_COLORBAR
+#include "test_ov7670_colorbar.h"
+#endif
+#ifdef TEST_OV7670_COLORBAR_DMA
+#include "test_ov7670_colorbar_dma.h"
+#endif
 #ifdef TEST_LCD
 #include "test_lcd.h"
 #endif
 #ifdef TEST_LCD_DMA
 #include "test_lcd_dma.h"
+#endif
+#ifdef TEST_PIPELINE
+#include "test_pipeline.h"
 #endif
 
 /* Unity requires these hooks; empty by default.
@@ -44,7 +53,7 @@ void TestRunner_Run(void)
 {
   /* Emit blank lines to separate from previous session output */
   debug_printf("\n\n\n");
-  debug_printf("=== Unit Test Runner ===\n");
+  debug_printf("=== Unit Test Runner Begin ===\n");
 
   /* Each RunXxxTests() owns its own UNITY_BEGIN()/UNITY_END();
      UnityBegin/UnityEnd are not reentrant and reset test state. */
@@ -60,12 +69,23 @@ void TestRunner_Run(void)
 #ifdef TEST_OV7670
   RunOv7670Tests();
 #endif
+#ifdef TEST_OV7670_COLORBAR
+  RunOv7670ColorbarTests();
+#endif
+#ifdef TEST_OV7670_COLORBAR_DMA
+  RunOv7670ColorbarDmaTests();
+#endif
 #ifdef TEST_LCD
   RunLcdTests();
 #endif
 #ifdef TEST_LCD_DMA
   RunLcdDmaTests();
 #endif
+#ifdef TEST_PIPELINE
+  RunPipelineTests();   /* never returns: colorbar -> LCD streaming */
+#endif
+
+  debug_printf("=== Unit Test Runner End ===\n");
 
   /* TEST_LED feedback: all pass -> steady on, any fail -> fast blink. */
   for (;;)

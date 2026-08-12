@@ -1,3 +1,8 @@
 .codegraph/
 .worktrees/
 build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

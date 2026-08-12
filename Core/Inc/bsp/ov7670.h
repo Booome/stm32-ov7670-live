@@ -90,16 +90,26 @@ static inline void OV7670_FIFO_WR_Low(void)
 
 /* ---- Public API ---- */
 
+/* ---- Tunable image parameters (may need per-module adjustment) ----
+ * AWB gain registers do not affect sensor colorbar (injected after AWB);
+ * they affect real-camera images only.  Contrast default = 0x40. */
+#define OV7670_AWB_GGAIN    0x40u
+#define OV7670_AWB_BLUE     0x40u
+#define OV7670_AWB_RED      0x40u
+#define OV7670_CONTRAS      0xC0u
+#define OV7670_COM13_VAL    0x82u  /* gamma on, UV auto off */
+#define OV7670_COM6_VAL     0x43u  /* ABLC off */
+
 /** @brief  Initialize OV7670: hardware reset + SCCB register config
   * @retval true   All registers written successfully
   * @retval false  Camera not responding (SCCB NACK)
   */
 bool    OV7670_Init(void);
 
-/** @brief  Enable color bar test pattern (COM3 bit0 = 1) */
+/** @brief  Enable 8-bar color bar test pattern (COM7 bit1 + COM17 bit3 + XSC7) */
 void    OV7670_EnableColorBar(void);
 
-/** @brief  Disable color bar test pattern (COM3 bit0 = 0) */
+/** @brief  Disable color bar test pattern (restore COM7/COM17/XSC/YSC defaults) */
 void    OV7670_DisableColorBar(void);
 
 #endif /* OV7670_H */

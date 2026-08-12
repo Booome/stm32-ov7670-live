@@ -35,6 +35,7 @@
 #define OV7670_REG_EDGE          0x3Fu
 #define OV7670_REG_COM15         0x40u
 #define OV7670_REG_COM16         0x41u
+#define OV7670_REG_COM17         0x42u
 
 /* ---- Window / timing ---- */
 #define OV7670_REG_HSTART        0x17u
@@ -82,7 +83,7 @@
 #define OV7670_REG_SCALING_PCLK_DELAY 0xA2u
 
 /* ---- Gamma curve ---- */
-#define OV7670_REG_GAM0          0x7Au
+#define OV7670_REG_SLOP          0x7Au
 #define OV7670_REG_GAM1          0x7Bu
 #define OV7670_REG_GAM2          0x7Cu
 #define OV7670_REG_GAM3          0x7Du
@@ -137,7 +138,7 @@
 #define OV7670_REG_NT_CTRL       0xA4u
 
 /* ---- Lens correction ---- */
-#define OV7670_REG_LCC1          0x92u
+#define OV7670_REG_DM_LNL          0x92u
 
 /* ---- Multiplexor sequence ---- */
 #define OV7670_REG_MUX_SEL       0x79u
@@ -166,8 +167,8 @@
 #define OV7670_REG_MAGIC_9A      0x9Au
 #define OV7670_REG_MAGIC_9B      0x9Bu
 #define OV7670_REG_MAGIC_9C      0x9Cu
-#define OV7670_REG_MAGIC_9D      0x9Du
-#define OV7670_REG_MAGIC_9E      0x9Eu
+#define OV7670_REG_BD50ST      0x9Du
+#define OV7670_REG_BD60ST      0x9Eu
 #define OV7670_REG_MAGIC_A1      0xA1u
 #define OV7670_REG_MAGIC_B0      0xB0u
 #define OV7670_REG_MAGIC_B1      0xB1u
@@ -175,9 +176,20 @@
 #define OV7670_REG_MAGIC_B3      0xB3u
 #define OV7670_REG_MAGIC_B8      0xB8u
 
-/* COM3 bit0 = color bar test mode */
-#define OV7670_COM3_COLOR_BAR    0x01u
-#define OV7670_COM3_DEFAULT      0x0Cu
+/* COM7 bit1 = color bar test mode */
+#define OV7670_COM7_COLOR_BAR    0x02u
+#define OV7670_COM7_DEFAULT      0x14u
+
+/* COM17 bit3 = DSP color bar enable */
+#define OV7670_COM17_DSP_COLOR_BAR  0x08u
+#define OV7670_COM17_DEFAULT        0x00u
+
+/* SCALING_XSC bit7 = test_pattern[0], SCALING_YSC bit7 = test_pattern[1].
+ * test_pattern (XSC7,YSC7) = 11: 8-bar color bar (verified on hardware) */
+#define OV7670_XSC_TEST_PATTERN   0x80u
+#define OV7670_YSC_TEST_PATTERN   0x80u
+#define OV7670_YSC_DEFAULT        0x3Cu
+#define OV7670_XSC_DEFAULT        0x40u
 
 /**
   * @brief   Register configuration table for 160x128 RGB565
@@ -199,11 +211,11 @@ static const struct
 
   /* ---- Output format ---- */
   { OV7670_REG_TSLB,   0x04u }, /* TSLB: OV output timing           */
-  { OV7670_REG_COM7,   0x14u }, /* COM7: QVGA + RGB565             */
-  { OV7670_REG_COM3,   0x0Cu }, /* COM3: DCW + down-sampling       */
-  { OV7670_REG_COM14,  0x18u }, /* COM14: DCW PCLK + manual scale  */
-  { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565      */
-  { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                 */
+  { OV7670_REG_COM7,   0x04u }, /* COM7: VGA + RGB565 (bit2=1 RGB)  */
+  { OV7670_REG_COM3,   0x0Cu }, /* COM3: down-sampling + digital zoom enable */
+  { OV7670_REG_COM14,  0x1Au }, /* COM14: DCW PCLK + manual scale   */
+  { OV7670_REG_COM15,  0xD0u }, /* COM15: full range + RGB565       */
+  { OV7670_REG_RGB444, 0x00u }, /* RGB444: disable                  */
 
   /* ---- VGA window (sensor readout area, OmniVision default) ---- */
   { OV7670_REG_HSTART, 0x13u },
@@ -213,18 +225,20 @@ static const struct
   { OV7670_REG_VSTOP,  0x7Au },
   { OV7670_REG_VREF,   0x0Au },
 
-  /* ---- Scaling (160x128 via DCW + Digital Zoom) ---- */
-  { OV7670_REG_SCALING_DCWCTR,     0x11u }, /* DCWCTR: V/H by2                */
-  { OV7670_REG_SCALING_XSC,        0x40u }, /* XSC: horizontal 0.5x (320->160)*/
-  { OV7670_REG_SCALING_YSC,        0x3Cu }, /* YSC: vertical 0.533x (240->128)*/
-  { OV7670_REG_SCALING_PCLK_DIV,   0xF1u }, /* PCLK_DIV: /2 (match DCW by2)  */
-  { OV7670_REG_SCALING_PCLK_DELAY, 0x02u }, /* PCLK_DELAY                      */
+  /* ---- Scaling (160x128: VGA by DCW by2 + digital zoom) ----
+   * VGA (640x480) -> DCW by2 (320x240) -> XSC/YSC digital zoom
+   * (XSC=0x40 -> 0.5x, YSC=0x3C -> 0.533x) -> 160x128. */
+  { OV7670_REG_SCALING_XSC,     0x40u }, /* XSC: 0.5x horizontal (320->160) */
+  { OV7670_REG_SCALING_YSC,     0x3Cu }, /* YSC: 0.533x vertical (240->128) */
+  { OV7670_REG_SCALING_DCWCTR,  0x11u }, /* DCWCTR: V/H by2            */
+  { OV7670_REG_SCALING_PCLK_DIV, 0xF2u }, /* PCLK_DIV: /4, match COM14[2:0]=010 */
+  { OV7670_REG_SCALING_PCLK_DELAY, 0x00u }, /* PCLK_DELAY: 640/4-160=0        */
 
   /* ---- COM10: VSYNC/HREF/PCLK timing ---- */
   { OV7670_REG_COM10, 0x00u },
 
-  /* ---- Gamma curve (0x7A-0x89) ---- */
-  { OV7670_REG_GAM0,  0x20u },
+  /* ---- Gamma curve: SLOP(0x7A) + GAM1–GAM15(0x7B–0x89) ---- */
+  { OV7670_REG_SLOP,  0x20u },
   { OV7670_REG_GAM1,  0x10u },
   { OV7670_REG_GAM2,  0x1Eu },
   { OV7670_REG_GAM3,  0x35u },
@@ -268,7 +282,7 @@ static const struct
 
   /* ---- Reserved / magic registers ---- */
   { OV7670_REG_COM5,     0x61u },
-  { OV7670_REG_COM6,     0x4Bu },
+  { OV7670_REG_COM6,     OV7670_COM6_VAL },
   { OV7670_REG_MAGIC_16, 0x02u },
   { OV7670_REG_MVFP,     0x07u },
   { OV7670_REG_ADCCTR1,  0x02u },
@@ -290,7 +304,7 @@ static const struct
   { OV7670_REG_MAGIC_8F, 0x00u },
   { OV7670_REG_MAGIC_90, 0x00u },
   { OV7670_REG_MAGIC_91, 0x00u },
-  { OV7670_REG_LCC1,     0x19u },
+  { OV7670_REG_DM_LNL, 0x19u },
   { OV7670_REG_MAGIC_B0, 0x84u },
   { OV7670_REG_MAGIC_B1, 0x0Cu },
   { OV7670_REG_MAGIC_B2, 0x0Eu },
@@ -314,20 +328,20 @@ static const struct
   { OV7670_REG_AWB_CTRL7, 0x55u },
   { OV7670_REG_AWB_CTRL8, 0x11u },
   { OV7670_REG_AWB_CTRL9, 0x9Fu },
-  { OV7670_REG_GGAIN,     0x40u },
-  { OV7670_REG_BLUE,      0x40u },
-  { OV7670_REG_RED,       0x60u },
+  { OV7670_REG_GGAIN,     OV7670_AWB_GGAIN },
+  { OV7670_REG_BLUE,      OV7670_AWB_BLUE },
+  { OV7670_REG_RED,       OV7670_AWB_RED },
 
-  /* ---- COM8: re-enable AWB (all auto features on) ---- */
-  { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
+  /* ---- COM8: re-enable AGC+AEC (AWB stays off to preserve gain values) ---- */
+  { OV7670_REG_COM8, 0xE5u }, /* FASTAEC+AECSTEP+BFILT+AGC+AEC (no AWB) */
 
-  /* ---- Color matrix (RGB565 specific) ---- */
-  { OV7670_REG_MTX1, 0xB3u },
-  { OV7670_REG_MTX2, 0xB3u },
+  /* ---- Color matrix (reference FIFO camera values) ---- */
+  { OV7670_REG_MTX1, 0x80u },
+  { OV7670_REG_MTX2, 0x80u },
   { OV7670_REG_MTX3, 0x00u },
-  { OV7670_REG_MTX4, 0x3Du },
-  { OV7670_REG_MTX5, 0xA7u },
-  { OV7670_REG_MTX6, 0xE4u },
+  { OV7670_REG_MTX4, 0x22u },
+  { OV7670_REG_MTX5, 0x5Eu },
+  { OV7670_REG_MTX6, 0x80u },
   { OV7670_REG_MTXS, 0x9Eu },
 
   /* ---- Post-processing ---- */
@@ -337,12 +351,12 @@ static const struct
   { OV7670_REG_REG76,    0xE1u },
   { OV7670_REG_DNSTH,    0x00u },
   { OV7670_REG_MAGIC_77, 0x01u },
-  { OV7670_REG_COM13,    0xC0u },
+  { OV7670_REG_COM13,    OV7670_COM13_VAL },
   { OV7670_REG_MAGIC_4B, 0x09u },
   { OV7670_REG_SATCR,    0x60u },
-  { OV7670_REG_CONTRAS,  0x40u },
+  { OV7670_REG_CONTRAS,  OV7670_CONTRAS },
   { OV7670_REG_BRIGHT,   0x00u },
-  { OV7670_REG_COM16,    0x38u },
+  { OV7670_REG_COM16,    0x28u },
 
   /* ---- Frame rate / noise ---- */
   { OV7670_REG_ARBLM,    0x11u },
@@ -355,8 +369,8 @@ static const struct
   { OV7670_REG_MAGIC_9A, 0x84u },
   { OV7670_REG_MAGIC_9B, 0x29u },
   { OV7670_REG_MAGIC_9C, 0x03u },
-  { OV7670_REG_MAGIC_9D, 0x4Cu },
-  { OV7670_REG_MAGIC_9E, 0x3Fu },
+  { OV7670_REG_BD50ST, 0x4Cu },
+  { OV7670_REG_BD60ST, 0x3Fu },
   { OV7670_REG_MAGIC_78, 0x04u },
 
   /* ---- Trigger sequence (MUX_SEL / MUX_DAT pairs, OV chip init) ---- */
@@ -417,10 +431,21 @@ bool OV7670_Init(void)
 
 void OV7670_EnableColorBar(void)
 {
-  SCCB_WriteReg(OV7670_REG_COM3, OV7670_COM3_DEFAULT | OV7670_COM3_COLOR_BAR);
+  /* COM7 bit1: color bar enable */
+  SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT | OV7670_COM7_COLOR_BAR);
+
+  /* COM17 bit3: DSP color bar enable */
+  SCCB_WriteReg(OV7670_REG_COM17, OV7670_COM17_DEFAULT | OV7670_COM17_DSP_COLOR_BAR);
+
+  /* test_pattern = "10" (8-bar): XSC bit7 = 1, YSC bit7 = 0 */
+  SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT | OV7670_XSC_TEST_PATTERN);
+  SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
 }
 
 void OV7670_DisableColorBar(void)
 {
-  SCCB_WriteReg(OV7670_REG_COM3, OV7670_COM3_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_COM17, OV7670_COM17_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT);
+  SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
 }

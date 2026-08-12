@@ -2,8 +2,12 @@
   * @file    debug.h
   * @brief   Debug output via USART1 (printf redirection)
   *
-  *          debug_printf macro: active in Debug build, no-op in Release.
-  *          Uses newlib printf -> _write() -> __io_putchar() -> HAL_UART_Transmit.
+  *          debug_printf macro: active when DEBUG or FORCE_DEBUG_OUTPUT
+  *          is defined.  Uses newlib printf -> _write() -> __io_putchar()
+  *          -> HAL_UART_Transmit.
+  *
+  *          To enable in Release builds:
+  *            cmake --preset Release -DFORCE_DEBUG_OUTPUT=ON
   *
   *          To force UART output in Release builds, define FORCE_DEBUG_OUTPUT
   *          in CMakeLists.txt:
