@@ -161,6 +161,9 @@ void LCD_Init(void)
 
   /* CS high after init */
   LCD_CS_High();
+
+  /* Clear power-on GRAM garbage so the blank border rows stay black */
+  LCD_FillScreen(0x0000u);
 }
 
 void LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
@@ -193,4 +196,26 @@ void LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 
   /* DC=1 for pixel data, CS stays low for SPI DMA stream */
   LCD_DC_High();
+}
+
+void LCD_FillScreen(uint16_t color)
+{
+  static uint8_t row[LCD_WIDTH * 2u];
+  uint16_t x;
+  uint16_t y;
+
+  for (x = 0u; x < LCD_WIDTH; x++)
+  {
+    row[x * 2u]     = (uint8_t)(color >> 8);
+    row[x * 2u + 1u] = (uint8_t)(color & 0xFFu);
+  }
+
+  LCD_SetAddrWindow(0u, 0u, LCD_WIDTH - 1u, LCD_HEIGHT - 1u);
+
+  for (y = 0u; y < LCD_HEIGHT; y++)
+  {
+    HAL_SPI_Transmit(&hspi2, row, LCD_WIDTH * 2u, HAL_MAX_DELAY);
+  }
+
+  LCD_CS_High();
 }

@@ -103,7 +103,8 @@ static void ReadStart(void)
 
   OV7670_FIFO_OE_Low();
 
-  LCD_SetAddrWindow(0u, 0u, PIPELINE_WIDTH - 1u, PIPELINE_HEIGHT - 1u);
+  LCD_SetAddrWindow(0u, PIPELINE_V_OFFSET, PIPELINE_WIDTH - 1u,
+                    PIPELINE_V_OFFSET + PIPELINE_HEIGHT - 1u);
 
   SpiRestore1LineTx();
 

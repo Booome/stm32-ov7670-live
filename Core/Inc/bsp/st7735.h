@@ -59,6 +59,10 @@ static inline void LCD_RESET_High(void)
 
 /* ---- Public API ---- */
 
+/* LCD panel dimensions (landscape, MADCTL MV=1) */
+#define LCD_WIDTH   160u
+#define LCD_HEIGHT  128u
+
 /** @brief  Full LCD initialization: reset, register config, display on */
 void    LCD_Init(void);
 
@@ -73,6 +77,11 @@ void    LCD_Init(void);
   *          Caller must raise CS after frame transfer completes.
   */
 void    LCD_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+
+/** @brief  Fill entire panel with a solid RGB565 color (blocking)
+  * @param  color  RGB565 color value
+  */
+void    LCD_FillScreen(uint16_t color);
 
 /** @brief  Read an 8-bit register from ST7735 (STUB, always returns 0)
   * @param  cmd  Register read command (e.g. 0xDA for RDID1)

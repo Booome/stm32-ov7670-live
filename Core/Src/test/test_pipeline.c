@@ -8,7 +8,7 @@
   *          so the blocking UART never delays frame read start.
   *
   *          Known facts (verified in TEST_OV7670_COLORBAR):
-  *          - Sensor scaling 160x128 is effective: frame = 40960B < 384KB FIFO.
+  *          - Sensor scaling 160x120 is effective: frame = 38400B < 384KB FIFO.
   *          - Sensor colorbar (COM7 bit1) produces the standard 8 vertical bars.
   *          - QVGA (150KB/frame) cannot fit the FIFO - never use QVGA mode.
  *          - Avg write 1.23MB/s < read 1.44MB/s; read starts 15ms after
@@ -45,7 +45,7 @@ void RunPipelineTests(void)
   OV7670_EnableColorBar();
   debug_printf("[TEST_PIPELINE] colorbar enabled (8-bar)\n");
 
-  debug_printf("[TEST_PIPELINE] res=160x128 frame=%uB fifo=%uB (fits)\n",
+  debug_printf("[TEST_PIPELINE] res=160x120 frame=%uB fifo=%uB (fits)\n",
                PIPELINE_FRAME_SIZE, TEST_PIPELINE_FIFO_BYTES);
 
   LCD_Init();

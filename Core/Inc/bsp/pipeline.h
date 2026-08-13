@@ -5,7 +5,8 @@
   *          Camera DMA (Circular) reads GPIOA->IDR into PipelineBuffer[640],
   *          SPI DMA (Normal) sends 320B half-buffers to ST7735 LCD.
   *
- *          Frame: 160x128 RGB565 = 40960 bytes = 128 x 320B half-buffers
+ *          Frame: 160x120 RGB565 = 38400 bytes = 120 x 320B half-buffers
+ *          (centered on 160x128 LCD with 4 blank rows top/bottom)
  *          VSYNC triggered, DWT non-blocking half-frame read delay (15ms):
  *          read overlaps the next frame's write, so writing the next frame's
  *          front half overwrites FIFO addresses the reader already passed.
@@ -59,8 +60,10 @@ typedef enum
 
 /** @brief Frame parameters */
 #define PIPELINE_WIDTH       160u
-#define PIPELINE_HEIGHT      128u
-#define PIPELINE_FRAME_SIZE  (PIPELINE_WIDTH * PIPELINE_HEIGHT * 2u)  /**< 40960 bytes */
+#define PIPELINE_HEIGHT      120u
+#define PIPELINE_LCD_HEIGHT  128u
+#define PIPELINE_V_OFFSET    ((PIPELINE_LCD_HEIGHT - PIPELINE_HEIGHT) / 2u)
+#define PIPELINE_FRAME_SIZE  (PIPELINE_WIDTH * PIPELINE_HEIGHT * 2u)  /**< 38400 bytes */
 #define PIPELINE_BUFFER_SIZE 640u                                     /**< 2 x 320B ping-pong */
 #define PIPELINE_HALF_SIZE   (PIPELINE_BUFFER_SIZE / 2u)              /**< 320 bytes */
 
@@ -68,8 +71,8 @@ _Static_assert(PIPELINE_FRAME_SIZE % PIPELINE_HALF_SIZE == 0u,
               "PIPELINE_FRAME_SIZE must be multiple of PIPELINE_HALF_SIZE");
 _Static_assert(PIPELINE_BUFFER_SIZE == PIPELINE_HALF_SIZE * 2u,
               "PIPELINE_BUFFER_SIZE must be 2x PIPELINE_HALF_SIZE");
-_Static_assert(PIPELINE_FRAME_SIZE == 40960u,
-              "PIPELINE_FRAME_SIZE mismatch (expected 160*128*2)");
+_Static_assert(PIPELINE_FRAME_SIZE == 38400u,
+              "PIPELINE_FRAME_SIZE mismatch (expected 160*120*2)");
 _Static_assert(PIPELINE_HALF_SIZE == 320u,
               "PIPELINE_HALF_SIZE mismatch (expected 640/2)");
 
