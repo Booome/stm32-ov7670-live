@@ -99,6 +99,23 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 - Pointer `*` adjacent to variable name: `uint8_t *ptr`
 - Parameter validation: `assert_param()`
 
+### LL Peripheral Access
+
+- Do not hardcode CMSIS peripheral instances (`DMA1_ChannelN`, `TIMx`, `SPIx`,
+  `EXTI`) or their channel-bound flags directly in business logic. Define
+  readable macro aliases in `Core/Inc/bsp/periph_map.h` — the single header
+  that aggregates all such mappings:
+
+  ```c
+  #define PIPELINE_CAM_DMA       DMA1            /* controller */
+  #define PIPELINE_CAM_DMA_CHNL  DMA1_Channel3   /* channel */
+  #define PIPELINE_CAM_TIM       TIM3
+  ```
+
+- CubeMX regeneration may re-map DMA channels / peripherals; updating the
+  `periph_map.h` block is enough. Keep the aliases together with a "must match
+  msp.c" note.
+
 ## CubeMX Rules
 
 - Only write code within `/* USER CODE BEGIN */ ... /* USER CODE END */` regions

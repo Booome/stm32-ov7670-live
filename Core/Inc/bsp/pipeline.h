@@ -19,6 +19,7 @@
 #include "dwt_delay.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
+#include "periph_map.h"
 
 /* TIM3 handle (defined in main.c) */
 extern TIM_HandleTypeDef htim3;
