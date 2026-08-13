@@ -28,8 +28,8 @@ static DWT_DelayHandle s_vsync_delay;
 static uint8_t s_pipeline_buffer[PIPELINE_BUFFER_SIZE];
 
 /* Forward declarations */
-static void OnDmaHalfCplt(DMA_HandleTypeDef *hdma);
-static void OnDmaCplt(DMA_HandleTypeDef *hdma);
+static void OnDmaHalfCplt(void);
+static void OnDmaCplt(void);
 
 /* ---- SPI TX DMA LL helpers (no HAL callbacks, no NVIC) ----
  *
@@ -194,12 +194,6 @@ void Pipeline_Init(void)
 
   SET_BIT(hspi2.Instance->CR2, SPI_CR2_TXDMAEN | SPI_CR2_ERRIE);
   HAL_NVIC_DisableIRQ(DMA1_Channel5_IRQn);
-
-  /* Register camera DMA callbacks once.  HAL_DMA_IRQHandler invokes them on
-   * HT/TC; HAL_DMA_Abort never clears them, so one-time registration here is
-   * equivalent to the per-frame assignment previously paired with Start_IT. */
-  hdma_tim3_ch4_up.XferHalfCpltCallback = OnDmaHalfCplt;
-  hdma_tim3_ch4_up.XferCpltCallback = OnDmaCplt;
 }
 
 Pipeline_StateTypeDef Pipeline_GetState(void)
@@ -240,9 +234,28 @@ static void OnVsync(void)
   DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
 }
 
-static void OnDmaHalfCplt(DMA_HandleTypeDef *hdma)
+/** @brief  Camera DMA (DMA1_Channel3) interrupt entry.
+  *         Replaces HAL_DMA_IRQHandler: reads ISR, clears the HT/TC flag,
+  *         dispatches to the matching handler.  Circular mode -> no interrupt
+  *         disable or state change on completion (mirrors HAL behavior). */
+void Pipeline_CameraDmaIrq(void)
 {
-  (void)hdma;
+  uint32_t isr = DMA1->ISR;
+
+  if ((isr & DMA_ISR_HTIF3) != 0u)
+  {
+    DMA1->IFCR = DMA_IFCR_CHTIF3;
+    OnDmaHalfCplt();
+  }
+  else if ((isr & DMA_ISR_TCIF3) != 0u)
+  {
+    DMA1->IFCR = DMA_IFCR_CTCIF3;
+    OnDmaCplt();
+  }
+}
+
+static void OnDmaHalfCplt(void)
+{
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
     return;
@@ -253,9 +266,8 @@ static void OnDmaHalfCplt(DMA_HandleTypeDef *hdma)
   s_bytes_sent += PIPELINE_HALF_SIZE;
 }
 
-static void OnDmaCplt(DMA_HandleTypeDef *hdma)
+static void OnDmaCplt(void)
 {
-  (void)hdma;
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
   {
     return;
@@ -271,11 +283,14 @@ static void OnDmaCplt(DMA_HandleTypeDef *hdma)
   }
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+/** @brief  VSYNC EXTI (PA11) interrupt entry.
+  *         Replaces HAL_GPIO_EXTI_IRQHandler + HAL_GPIO_EXTI_Callback:
+  *         clears the EXTI pending flag and starts a new frame read. */
+void Pipeline_VsyncExtiIrq(void)
 {
-  if (GPIO_Pin != OV7670_VSYNC_Pin)
+  if ((EXTI->PR & OV7670_VSYNC_Pin) != 0u)
   {
-    return;
+    EXTI->PR = OV7670_VSYNC_Pin;
+    OnVsync();
   }
-  OnVsync();
 }

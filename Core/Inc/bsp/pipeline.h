@@ -83,4 +83,10 @@ uint32_t Pipeline_GetFrameCount(void);
 /** @brief  Poll for non-blocking delay completion (call from main loop) */
 void                  Pipeline_Poll(void);
 
+/** @brief  VSYNC EXTI (PA11) interrupt entry (LL, replaces HAL GPIO EXTI) */
+void                  Pipeline_VsyncExtiIrq(void);
+
+/** @brief  Camera DMA (DMA1_Channel3) HT/TC interrupt entry (LL) */
+void                  Pipeline_CameraDmaIrq(void);
+
 #endif /* PIPELINE_H */
