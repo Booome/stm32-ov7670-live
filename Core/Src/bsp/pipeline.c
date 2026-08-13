@@ -78,6 +78,12 @@ static inline void SpiRestore1LineTx(void)
   (void)SPI2->SR;
 }
 
+/* RCK = PB1: CNF1[1:0]+MODE1[1:0] occupy CRL bits [7:4].
+ * LL equivalents of HAL_GPIO_Init for the AF<->GPIO toggle in ReadStart. */
+#define RCK_CRL_FIELD_MASK  (0x0Fu << 4u)
+#define RCK_CRL_OUTPUT_PP   (0x03u << 4u)   /* CNF=00, MODE=11 (50MHz out) */
+#define RCK_CRL_AF_PP       (0x0Bu << 4u)   /* CNF=10, MODE=11 (50MHz AF)  */
+
 /**
   * @brief   Start FIFO read pipeline
   */
@@ -92,24 +98,24 @@ static void ReadStart(void)
     s_abort_pending = false;
   }
 
-  /* Reset FIFO read pointer: AL422B requires RRST low + RCK falling edge */
+  /* Reset FIFO read pointer: AL422B requires RRST low + RCK falling edge.
+   * Toggle RCK (PB1) AF->GPIO->AF via direct CRL writes.
+   * BRR pre-clears ODR so each mode transition (which makes the pin follow
+   * ODR) never glitches — ODR is already low, matching the AF idle level. */
   {
-    GPIO_InitTypeDef gpio = {0};
-    gpio.Pin = OV7670_FIFO_RCK_Pin;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_TypeDef *port = OV7670_FIFO_RCK_GPIO_Port;
+    const uint32_t pin = OV7670_FIFO_RCK_Pin;
 
-    OV7670_FIFO_RCK_GPIO_Port->BRR = OV7670_FIFO_RCK_Pin;
-    gpio.Mode = GPIO_MODE_OUTPUT_PP;
-    HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
+    port->BRR = pin;
+    MODIFY_REG(port->CRL, RCK_CRL_FIELD_MASK, RCK_CRL_OUTPUT_PP);
 
-    HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_SET);
+    port->BSRR = pin;                 /* RCK high */
     OV7670_FIFO_RRST_Low();
-    HAL_GPIO_WritePin(OV7670_FIFO_RCK_GPIO_Port, OV7670_FIFO_RCK_Pin, GPIO_PIN_RESET);
+    port->BRR = pin;                  /* RCK falling edge while RRST low */
     OV7670_FIFO_RRST_High();
 
-    OV7670_FIFO_RCK_GPIO_Port->BRR = OV7670_FIFO_RCK_Pin;
-    gpio.Mode = GPIO_MODE_AF_PP;
-    HAL_GPIO_Init(OV7670_FIFO_RCK_GPIO_Port, &gpio);
+    port->BRR = pin;
+    MODIFY_REG(port->CRL, RCK_CRL_FIELD_MASK, RCK_CRL_AF_PP);
   }
 
   OV7670_FIFO_OE_Low();
