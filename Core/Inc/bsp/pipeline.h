@@ -6,7 +6,7 @@
   *          SPI DMA (Normal) sends 320B half-buffers to ST7735 LCD.
   *
  *          Frame: 160x120 RGB565 = 38400 bytes = 120 x 320B half-buffers
- *          (centered on 160x128 LCD with 4 blank rows top/bottom)
+ *          (centered on 160x128 LCD; crop macros trim edge artifacts)
  *          VSYNC triggered, DWT non-blocking half-frame read delay (15ms):
  *          read overlaps the next frame's write, so writing the next frame's
  *          front half overwrites FIFO addresses the reader already passed.
@@ -61,8 +61,21 @@ typedef enum
 /** @brief Frame parameters */
 #define PIPELINE_WIDTH       160u
 #define PIPELINE_HEIGHT      120u
+#define PIPELINE_LCD_WIDTH   160u
 #define PIPELINE_LCD_HEIGHT  128u
-#define PIPELINE_V_OFFSET    ((PIPELINE_LCD_HEIGHT - PIPELINE_HEIGHT) / 2u)
+
+/* Edge crop: discard camera-frame edge pixels to hide artifacts */
+#define PIPELINE_CROP_TOP     1u
+#define PIPELINE_CROP_BOTTOM  0u
+#define PIPELINE_CROP_LEFT    6u
+#define PIPELINE_CROP_RIGHT   1u
+
+#define PIPELINE_DISP_WIDTH   (PIPELINE_WIDTH - PIPELINE_CROP_LEFT - PIPELINE_CROP_RIGHT)
+#define PIPELINE_DISP_HEIGHT  (PIPELINE_HEIGHT - PIPELINE_CROP_TOP - PIPELINE_CROP_BOTTOM)
+#define PIPELINE_ROW_BYTES    (PIPELINE_DISP_WIDTH * 2u)
+#define PIPELINE_LCD_X_OFFSET ((PIPELINE_LCD_WIDTH - PIPELINE_DISP_WIDTH) / 2u)
+#define PIPELINE_LCD_Y_OFFSET ((PIPELINE_LCD_HEIGHT - PIPELINE_DISP_HEIGHT) / 2u)
+
 #define PIPELINE_FRAME_SIZE  (PIPELINE_WIDTH * PIPELINE_HEIGHT * 2u)  /**< 38400 bytes */
 #define PIPELINE_BUFFER_SIZE 640u                                     /**< 2 x 320B ping-pong */
 #define PIPELINE_HALF_SIZE   (PIPELINE_BUFFER_SIZE / 2u)              /**< 320 bytes */
@@ -75,6 +88,12 @@ _Static_assert(PIPELINE_FRAME_SIZE == 38400u,
               "PIPELINE_FRAME_SIZE mismatch (expected 160*120*2)");
 _Static_assert(PIPELINE_HALF_SIZE == 320u,
               "PIPELINE_HALF_SIZE mismatch (expected 640/2)");
+_Static_assert(PIPELINE_CROP_LEFT + PIPELINE_CROP_RIGHT < PIPELINE_WIDTH,
+              "horizontal crop must leave visible columns");
+_Static_assert(PIPELINE_CROP_TOP + PIPELINE_CROP_BOTTOM < PIPELINE_HEIGHT,
+              "vertical crop must leave visible rows");
+_Static_assert(PIPELINE_ROW_BYTES <= PIPELINE_HALF_SIZE,
+              "cropped row must fit one half-buffer");
 
 /** @brief  Initialize pipeline module (set state to IDLE) */
 void                  Pipeline_Init(void);

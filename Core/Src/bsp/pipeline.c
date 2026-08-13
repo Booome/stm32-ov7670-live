@@ -12,7 +12,7 @@
 #define PIPELINE_READ_DELAY_US  15000u
 
 static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_DISABLED;
-static volatile uint32_t s_bytes_sent;
+static volatile uint32_t s_rows_read;
 static volatile bool s_read_pending;
 static volatile uint32_t s_frame_count;
 static DWT_DelayHandle s_vsync_delay;
@@ -103,12 +103,13 @@ static void ReadStart(void)
 
   OV7670_FIFO_OE_Low();
 
-  LCD_SetAddrWindow(0u, PIPELINE_V_OFFSET, PIPELINE_WIDTH - 1u,
-                    PIPELINE_V_OFFSET + PIPELINE_HEIGHT - 1u);
+  LCD_SetAddrWindow(PIPELINE_LCD_X_OFFSET, PIPELINE_LCD_Y_OFFSET,
+                    PIPELINE_LCD_X_OFFSET + PIPELINE_DISP_WIDTH - 1u,
+                    PIPELINE_LCD_Y_OFFSET + PIPELINE_DISP_HEIGHT - 1u);
 
   SpiRestore1LineTx();
 
-  s_bytes_sent = 0u;
+  s_rows_read = 0u;
 
   CamDma_Start();
 
@@ -134,7 +135,7 @@ static void FrameDone(void)
 void Pipeline_Init(void)
 {
   s_state = PIPELINE_STATE_IDLE;
-  s_bytes_sent = 0u;
+  s_rows_read = 0u;
   s_frame_count = 0u;
   s_read_pending = false;
 
@@ -199,6 +200,21 @@ void Pipeline_CameraDmaIrq(void)
   }
 }
 
+static void SendRow(uint8_t *row)
+{
+  SpiTxDma_WaitDone();
+  if ((s_rows_read >= PIPELINE_CROP_TOP) &&
+      (s_rows_read < PIPELINE_HEIGHT - PIPELINE_CROP_BOTTOM))
+  {
+    SpiTxDma_Start(row, PIPELINE_ROW_BYTES);
+  }
+  s_rows_read++;
+  if (s_rows_read >= PIPELINE_HEIGHT)
+  {
+    s_state = PIPELINE_STATE_FRAME_DONE;
+  }
+}
+
 static void OnDmaHalfCplt(void)
 {
   if (s_state != PIPELINE_STATE_FRAME_CAPTURING)
@@ -206,9 +222,7 @@ static void OnDmaHalfCplt(void)
     return;
   }
 
-  SpiTxDma_WaitDone();
-  SpiTxDma_Start(s_pipeline_buffer, PIPELINE_HALF_SIZE);
-  s_bytes_sent += PIPELINE_HALF_SIZE;
+  SendRow(&s_pipeline_buffer[PIPELINE_CROP_LEFT * 2u]);
 }
 
 static void OnDmaCplt(void)
@@ -218,14 +232,7 @@ static void OnDmaCplt(void)
     return;
   }
 
-  SpiTxDma_WaitDone();
-  SpiTxDma_Start(&s_pipeline_buffer[PIPELINE_HALF_SIZE], PIPELINE_HALF_SIZE);
-  s_bytes_sent += PIPELINE_HALF_SIZE;
-
-  if (s_bytes_sent >= PIPELINE_FRAME_SIZE)
-  {
-    s_state = PIPELINE_STATE_FRAME_DONE;
-  }
+  SendRow(&s_pipeline_buffer[PIPELINE_HALF_SIZE + PIPELINE_CROP_LEFT * 2u]);
 }
 
 void Pipeline_VsyncExtiIrq(void)
