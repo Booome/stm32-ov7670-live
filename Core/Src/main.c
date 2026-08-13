@@ -114,9 +114,6 @@ int main(void)
 #else
   debug_printf("\n\n=== STM32 OV7670 Live ===\n");
 
-  /* Enable TIM3 CC4 DMA request (triggers Camera DMA per RCK cycle) */
-  Pipeline_EnableTimDma();
-
   /* BSP initialization (order matters: DWT -> OV7670 -> LCD -> Pipeline) */
   DWT_Init();
   debug_printf("DWT init OK\n");
@@ -132,6 +129,10 @@ int main(void)
   debug_printf("LCD init OK\n");
 
   Pipeline_Init();
+
+  /* Enable TIM3 CC4 DMA request (triggers Camera DMA per RCK cycle) */
+  Pipeline_EnableTimDma();
+
   debug_printf("Pipeline init OK, enabling VSYNC...\n");
 
   /* Enable VSYNC interrupt (PA11 -> EXTI11, last step before main loop) */

@@ -118,10 +118,10 @@ static void TestOv7670Colorbar(void)
   TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_XSC) & 0x80u);/* XSC7=0 */
   TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_YSC) & 0x80u); /* YSC7=1 */
 
-  /* Disable: restore COM7, COM8 (AGC+AEC on), XSC/YSC defaults */
+  /* Disable: restore COM7, COM8 (AGC+AWB+AEC on), XSC/YSC defaults */
   OV7670_DisableColorBar();
   TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_COM7) & 0x02u);      /* colorbar off */
-  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_COM8) & 0x03u);  /* AGC+AEC on */
+  TEST_ASSERT_NOT_EQUAL(0u, ReadRegChecked(TEST_REG_COM8) & 0x03u);  /* AEC+AWB on */
   TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_XSC) & 0x80u);/* XSC7=0 (default) */
   TEST_ASSERT_EQUAL(0u, ReadRegChecked(TEST_REG_SCALING_YSC) & 0x80u);/* YSC7=0 (default) */
 }
@@ -132,9 +132,10 @@ static void TestHardware3aRunning(void)
 {
   uint8_t com8 = ReadRegChecked(TEST_REG_COM8);
 
-  /* COM8: AEC (bit0) and AGC (bit1) enable bits must be set */
+  /* COM8: AEC (bit0), AWB (bit1), AGC (bit2) enable bits must be set */
   TEST_ASSERT_TRUE(com8 & 0x01u);
   TEST_ASSERT_TRUE(com8 & 0x02u);
+  TEST_ASSERT_TRUE(com8 & 0x04u);
 
   /* GAIN/AECH are scene-dependent; just verify they're readable */
   ReadRegChecked(TEST_REG_GAIN);

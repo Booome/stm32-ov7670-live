@@ -287,7 +287,7 @@ static const struct
   { OV7670_REG_COM5,     0x61u },
   { OV7670_REG_COM6,     OV7670_COM6_VAL },
   { OV7670_REG_MAGIC_16, 0x02u },
-  { OV7670_REG_MVFP,     0x07u },
+  { OV7670_REG_MVFP,     0x17u }, /* VFlip (bit4) */
   { OV7670_REG_ADCCTR1,  0x02u },
   { OV7670_REG_ADCCTR2,  0x91u },
   { OV7670_REG_MAGIC_29, 0x07u },
@@ -335,8 +335,8 @@ static const struct
   { OV7670_REG_BLUE,      OV7670_AWB_BLUE },
   { OV7670_REG_RED,       OV7670_AWB_RED },
 
-  /* ---- COM8: re-enable AGC+AEC (AWB stays off to preserve gain values) ---- */
-  { OV7670_REG_COM8, 0xE5u }, /* FASTAEC+AECSTEP+BFILT+AGC+AEC (no AWB) */
+  /* ---- COM8: re-enable AGC+AEC+AWB ---- */
+  { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
 
   /* ---- Color matrix (reference FIFO camera values) ---- */
   { OV7670_REG_MTX1, 0x80u },
@@ -449,7 +449,7 @@ void OV7670_EnableColorBar(void)
 void OV7670_DisableColorBar(void)
 {
   SCCB_WriteReg(OV7670_REG_COM7, OV7670_COM7_DEFAULT);
-  SCCB_WriteReg(OV7670_REG_COM8, 0xE5u);  /* restore AGC+AEC, AWB off */
+  SCCB_WriteReg(OV7670_REG_COM8, 0xE7u);  /* restore AGC+AWB+AEC */
   SCCB_WriteReg(OV7670_REG_SCALING_XSC, OV7670_XSC_DEFAULT);
   SCCB_WriteReg(OV7670_REG_SCALING_YSC, OV7670_YSC_DEFAULT);
 }
