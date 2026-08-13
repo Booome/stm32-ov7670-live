@@ -97,7 +97,7 @@ static inline void OV7670_FIFO_WR_Low(void)
 #define OV7670_AWB_BLUE     0x40u
 #define OV7670_AWB_RED      0x40u
 #define OV7670_CONTRAS      0xC0u
-#define OV7670_COM13_VAL    0x82u  /* gamma on, UV auto off */
+#define OV7670_COM13_VAL    0xC0u  /* gamma on, UVSAT on */
 #define OV7670_COM6_VAL     0x43u  /* ABLC off */
 
 /** @brief  Initialize OV7670: hardware reset + SCCB register config
