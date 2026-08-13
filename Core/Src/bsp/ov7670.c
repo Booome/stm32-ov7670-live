@@ -336,13 +336,13 @@ static const struct
   /* ---- COM8: re-enable AGC+AEC+AWB ---- */
   { OV7670_REG_COM8, 0xE7u }, /* FASTAEC+AECSTEP+BFILT+AGC+AWB+AEC */
 
-  /* ---- Color matrix (reference FIFO camera values) ---- */
-  { OV7670_REG_MTX1, 0x80u },
-  { OV7670_REG_MTX2, 0x80u },
+  /* ---- Color matrix: RGB565 matrix from Linux kernel ov7670.c fmt_rgb565 ---- */
+  { OV7670_REG_MTX1, 0xB3u },
+  { OV7670_REG_MTX2, 0xB3u },
   { OV7670_REG_MTX3, 0x00u },
-  { OV7670_REG_MTX4, 0x22u },
-  { OV7670_REG_MTX5, 0x5Eu },
-  { OV7670_REG_MTX6, 0x80u },
+  { OV7670_REG_MTX4, 0x3Du },
+  { OV7670_REG_MTX5, 0xA7u },
+  { OV7670_REG_MTX6, 0xE4u },
   { OV7670_REG_MTXS, 0x9Eu },
 
   /* ---- Post-processing ---- */
@@ -357,7 +357,7 @@ static const struct
   { OV7670_REG_SATCR,    0x60u },
   { OV7670_REG_CONTRAS,  OV7670_CONTRAS },
   { OV7670_REG_BRIGHT,   0x00u },
-  { OV7670_REG_COM16,    0x28u },
+{ OV7670_REG_COM16,  0x38u },
 
   /* ---- Frame rate / noise ---- */
   { OV7670_REG_ARBLM,    0x11u },

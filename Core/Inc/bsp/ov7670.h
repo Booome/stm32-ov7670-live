@@ -95,8 +95,8 @@ static inline void OV7670_FIFO_WR_Low(void)
  * they affect real-camera images only.  Contrast default = 0x40. */
 #define OV7670_AWB_GGAIN    0x40u
 #define OV7670_AWB_BLUE     0x40u
-#define OV7670_AWB_RED      0x40u
-#define OV7670_CONTRAS      0xC0u
+#define OV7670_AWB_RED      0x60u
+#define OV7670_CONTRAS      0x40u
 #define OV7670_COM13_VAL    0xC0u  /* gamma on, UVSAT on */
 #define OV7670_COM6_VAL     0x43u  /* ABLC off */
 
