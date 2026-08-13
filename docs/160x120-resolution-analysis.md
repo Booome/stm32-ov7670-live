@@ -63,7 +63,7 @@ Zoom 无法把 120 放大到 128。因此 160x128 的噪点与混叠是**结构�
 像素平均，信噪比最优、无混叠。采用方案：
 
 - 摄像头输出 160x120（`COM3=0x04`、`DCWCTR=0x22`、`XSC/YSC=0x20`）。
-- LCD 160x128 上垂直居中显示，上下各留 4 行黑边（`PIPELINE_V_OFFSET`）。
-- 清屏（`LCD_FillScreen`）保证上下黑边干净。
+- LCD 160x128 上居中显示，`PIPELINE_CROP_*` 宏裁切边缘（默认 TOP=1, LEFT=6, RIGHT=1），`PIPELINE_LCD_X/Y_OFFSET` 自动计算居中坐标。
+- 清屏（`LCD_FillScreen`）保证黑边干净。
 
-160x128 保留在 master 分支，仅作对照参考。
+160x128 保留在 `160x128-backup` 分支，仅作对照参考。

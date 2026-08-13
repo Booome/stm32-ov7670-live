@@ -13,9 +13,9 @@
 
 - FIFO write enable is HREF-gated on the module: `/WE = NAND(HREF, FIFO_WR)` (SN74LVC1G00).
   PCLK only reaches the AL422B WCLK while HREF is high, so **only active pixels are stored**.
-- Consequence: each stored row is exactly `width*2` bytes (320B for 160x128 RGB565) with no
+- Consequence: each stored row is exactly `width*2` bytes (320B for 160x120 RGB565) with no
   blanking padding. FIFO row boundaries align to 320B; software must NOT filter HREF blanks.
-- Frame = 128 rows x 320B = 40960B < AL422B capacity 393216B, no overflow.
+- Frame = 120 rows x 320B = 38400B < AL422B capacity 393216B, no overflow.
 
 ## Build & Verify
 

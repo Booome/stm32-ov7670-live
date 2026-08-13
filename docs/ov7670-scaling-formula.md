@@ -96,35 +96,35 @@ YSC[6:0] = 0x20 × DownSample_Height / Target_Height
 Pixel clock delay = (Original H size / Pixel clock divider) - New H size
 ```
 
-## 本项目配置验证 (160x128 RGB565)
+## 本项目配置验证 (160x120 RGB565)
 
 ### 缩放流水线
 
 | 步骤 | 水平 | 垂直 | 寄存器 |
 |------|------|------|--------|
 | VGA 原始 | 640 | 480 | 传感器阵列 |
-| DCW by 2 (H+V) | 320 | 240 | DCWCTR=0x11 (bit[5:4]=01, bit[1:0]=01) |
-| DSP Zoom Out | 160 | 128 | XSC=0x40, YSC=0x3C |
-| **输出** | **160** | **128** | ✓ |
+| DCW by 4 (H+V) | 160 | 120 | DCWCTR=0x22 (bit[5:4]=10, bit[1:0]=10) |
+| Digital Zoom | 160 | 120 | XSC=0x20, YSC=0x20 (1.0x, no zoom) |
+| **输出** | **160** | **120** | ✓ |
 
 ### 缩放系数计算
 
 ```
-XSC = 0x20 × 320 / 160 = 32 × 2.0  = 64 = 0x40  ✓
-YSC = 0x20 × 240 / 128 = 32 × 1.875 = 60 = 0x3C  ✓
+XSC = 0x20 × 160 / 160 = 32 × 1.0 = 32 = 0x20  ✓
+YSC = 0x20 × 120 / 120 = 32 × 1.0 = 32 = 0x20  ✓
 ```
 
 ### 寄存器配置表
 
 | 地址 | 寄存器 | 值 | 说明 |
 |------|--------|-----|------|
-| 0x0C | COM3 | 0x0C | bit3=1 Zoom enable, bit2=1 DCW enable |
-| 0x3E | COM14 | 0x18 | bit4=1 scaling PCLK, bit3=1 manual scaling |
-| 0x72 | DCWCTR | 0x11 | V by2 + H by2 |
-| 0x70 | XSC | 0x40 | H: 320->160 (0.5x) |
-| 0x71 | YSC | 0x3C | V: 240->128 (0.533x) |
-| 0x73 | PCLK_DIV | 0xF1 | bit3=0 enable divider, bit[2:0]=001 /2 |
-| 0xA2 | PCLK_DELAY | 0x02 | 时序补偿 |
+| 0x0C | COM3 | 0x04 | bit3=0 Zoom off, bit2=1 DCW enable |
+| 0x3E | COM14 | 0x1A | bit4=1 scaling PCLK, bit3=1 manual scaling, bit[2:0]=010 /4 |
+| 0x72 | DCWCTR | 0x22 | V by4 + H by4 |
+| 0x70 | XSC | 0x20 | H: 160 (1.0x, no zoom) |
+| 0x71 | YSC | 0x20 | V: 120 (1.0x, no zoom) |
+| 0x73 | PCLK_DIV | 0xF2 | bit[2:0]=010 /4 |
+| 0xA2 | PCLK_DELAY | 0x00 | 640/4-160=0 |
 
 ### test_pattern 配置
 
@@ -132,10 +132,10 @@ YSC = 0x20 × 240 / 128 = 32 × 1.875 = 60 = 0x3C  ✓
 
 | 寄存器 | 普通 | tp=10 (8-bar) | 说明 |
 |--------|------|---------------|------|
-| COM7 (0x12) | 0x14 | 0x16 | bit1=1 colorbar enable |
-| COM17 (0x42) | 0x00 | 0x08 | bit3=1 DSP colorbar enable |
-| XSC (0x70) | 0x40 | 0x40 | bit7=0, tp[0]=0 |
-| YSC (0x71) | 0x3C | 0xBC | bit7=1, tp[1]=1 |
+| COM7 (0x12) | 0x04 | 0x06 | bit1=1 colorbar enable |
+| COM17 (0x42) | 0x00 | 0x00 | no DSP colorbar |
+| XSC (0x70) | 0x20 | 0x20 | bit7=0, tp[0]=0 |
+| YSC (0x71) | 0x20 | 0xA0 | bit7=1, tp[1]=1 |
 
 **注意**：tp=10 表示 (XSC7=0, YSC7=1)，即 YSC 的 bit7 置 1，XSC 的 bit7 保持 0。
 
@@ -160,7 +160,7 @@ Digital Zoom:  320x240  -> 320x240 (不缩放)
   COM3=0x04, COM14=0x19
 ```
 
-### 160x120 (QQVGA, IG 官方配置)
+### 160x120 (QQVGA, IG 官方配置) — **本项目当前采用**
 
 ```
 Down Sampling: 640x480 -> 160x120 (by 4 H+V, DCWCTR=0x22)
@@ -169,6 +169,18 @@ Digital Zoom:  160x120  -> 160x120 (不缩放)
   YSC = 0x20 × 120 / 120 = 32 = 0x20 (1.0x)
   COM3=0x04, COM14=0x1A
 ```
+
+### 160x128 (已废弃，DCW by2 + Digital Zoom)
+
+```
+Down Sampling: 640x480 -> 320x240 (by 2 H+V, DCWCTR=0x11)
+Digital Zoom:  320x240  -> 160x128
+  XSC = 0x20 × 320 / 160 = 64 = 0x40 (0.5x)
+  YSC = 0x20 × 240 / 128 = 60 = 0x3C (0.533x，非整数 → 混叠)
+  COM3=0x0C, COM14=0x18
+```
+
+> 非整数 YSC=0.533x 引入混叠伪影，信噪比仅 √4=2x（vs 160x120 的 √16=4x）。已废弃，保留在 `160x128-backup` 分支。
 
 ## 自定义分辨率计算步骤
 
