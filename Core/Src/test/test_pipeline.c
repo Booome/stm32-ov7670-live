@@ -11,11 +11,12 @@
   *          - Sensor scaling 160x128 is effective: frame = 40960B < 384KB FIFO.
   *          - Sensor colorbar (COM7 bit1) produces the standard 8 vertical bars.
   *          - QVGA (150KB/frame) cannot fit the FIFO - never use QVGA mode.
-  *          - Avg write 1.23MB/s < read 1.44MB/s; read starts 6ms after
-  *            VSYNC (write lead 7.4KB) so the read never overtakes.
-  *          - Frame period 34.8ms, read completes at 6+28.4 = 34.4ms inside
-  *            the frame period -> every VSYNC starts a new read (~28.7 fps).
-  *
+ *          - Avg write 1.23MB/s < read 1.44MB/s; read starts 15ms after
+ *            VSYNC (write lead ~18.5KB) so the read never overtakes.
+ *          - Read spans [15, 43.4]ms and overlaps the next frame's write
+ *            (next VSYNC at 34.8ms): the next write overwrites the FIFO front
+ *            half the reader already passed -> ~28.7 fps.
+ *
   *          No Unity dependency: pure visual + serial observation test.
   */
 #include "test_pipeline.h"

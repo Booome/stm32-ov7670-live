@@ -9,11 +9,11 @@
 #include "main.h"
 #include "stm32f1xx_hal.h"
 
-#define PIPELINE_VSYNC_DELAY_US  6000u
+#define PIPELINE_READ_DELAY_US  15000u
 
 static volatile Pipeline_StateTypeDef s_state = PIPELINE_STATE_DISABLED;
 static volatile uint32_t s_bytes_sent;
-static volatile bool s_abort_pending;
+static volatile bool s_read_pending;
 static volatile uint32_t s_frame_count;
 static DWT_DelayHandle s_vsync_delay;
 
@@ -81,15 +81,6 @@ static inline void TimPwmStop(void)
 
 static void ReadStart(void)
 {
-  if (s_abort_pending)
-  {
-    TimPwmStop();
-    CamDma_Stop();
-    OV7670_FIFO_OE_High();
-    LCD_CS_High();
-    s_abort_pending = false;
-  }
-
   /* Reset FIFO read pointer: RRST low + RCK falling edge.  BRR pre-clears
    * ODR so the AF<->GPIO mode switches never glitch. */
   {
@@ -132,7 +123,6 @@ static void FrameDone(void)
 
   OV7670_FIFO_OE_High();
   LCD_CS_High();
-  OV7670_FIFO_WR_Low();
 
   s_frame_count++;
   s_state = PIPELINE_STATE_IDLE;
@@ -143,6 +133,7 @@ void Pipeline_Init(void)
   s_state = PIPELINE_STATE_IDLE;
   s_bytes_sent = 0u;
   s_frame_count = 0u;
+  s_read_pending = false;
 
   /* HAL_DMA_Init does not set CPAR; set once here. */
   PIPELINE_LCD_DMA_CHNL->CPAR = (uint32_t)&PIPELINE_LCD_SPI->DR;
@@ -165,16 +156,16 @@ uint32_t Pipeline_GetFrameCount(void)
 
 void Pipeline_Poll(void)
 {
-  if (s_state == PIPELINE_STATE_FRAME_START)
-  {
-    if (DWT_DelayExpired(&s_vsync_delay))
-    {
-      ReadStart();
-    }
-  }
-  else if (s_state == PIPELINE_STATE_FRAME_DONE)
+  if (s_state == PIPELINE_STATE_FRAME_DONE)
   {
     FrameDone();
+  }
+
+  if (s_read_pending && (s_state == PIPELINE_STATE_IDLE) &&
+      DWT_DelayExpired(&s_vsync_delay))
+  {
+    ReadStart();
+    s_read_pending = false;
   }
 }
 
@@ -185,10 +176,8 @@ static void OnVsync(void)
   OV7670_FIFO_WRST_High();
   OV7670_FIFO_WR_High();
 
-  s_abort_pending = (s_state != PIPELINE_STATE_IDLE);
-
-  s_state = PIPELINE_STATE_FRAME_START;
-  DWT_DelayStart(&s_vsync_delay, PIPELINE_VSYNC_DELAY_US);
+  DWT_DelayStart(&s_vsync_delay, PIPELINE_READ_DELAY_US);
+  s_read_pending = true;
 }
 
 void Pipeline_CameraDmaIrq(void)
