@@ -69,6 +69,8 @@ static inline void CamDma_Stop(void)
 
 static inline void TimPwmStart(void)
 {
+  /* Clear CNT so CC4E enable sees CNT<CCR4, avoiding a stray RCK edge */
+  PIPELINE_CAM_TIM->CNT = 0u;
   PIPELINE_CAM_TIM->CCER |= TIM_CCER_CC4E;
   PIPELINE_CAM_TIM->CR1 |= TIM_CR1_CEN;
 }
@@ -81,8 +83,8 @@ static inline void TimPwmStop(void)
 
 static void ReadStart(void)
 {
-  /* Reset FIFO read pointer: RRST low + RCK falling edge.  BRR pre-clears
-   * ODR so the AF<->GPIO mode switches never glitch. */
+  /* Reset FIFO read pointer: pulse RCK low->high->low while RRST is low.
+   * BRR pre-clears ODR so the AF<->GPIO mode switches never glitch. */
   {
     GPIO_TypeDef *port = OV7670_FIFO_RCK_GPIO_Port;
     const uint32_t pin = OV7670_FIFO_RCK_Pin;
@@ -90,8 +92,8 @@ static void ReadStart(void)
     port->BRR = pin;
     MODIFY_REG(port->CRL, PIPELINE_RCK_CRL_MASK, PIPELINE_RCK_CRL_OUTPUT_PP);
 
-    port->BSRR = pin;                 /* RCK high */
     OV7670_FIFO_RRST_Low();
+    port->BSRR = pin;                 /* RCK high */
     port->BRR = pin;                  /* RCK falling edge, RRST low */
     OV7670_FIFO_RRST_High();
 
