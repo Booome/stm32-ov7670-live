@@ -78,6 +78,31 @@ static inline void SpiRestore1LineTx(void)
   (void)SPI2->SR;
 }
 
+/* ---- Camera DMA LL helper (DMA1_Channel3, circular, interrupt-driven) ----
+ *
+ * Camera DMA reads OV7670_DATA_ADDR -> s_pipeline_buffer (P2M, circular).
+ * HT/TC interrupts are serviced by DMA1_Channel3_IRQHandler ->
+ * HAL_DMA_IRQHandler -> OnDmaHalfCplt/OnDmaCplt.  One-time setup (CPAR,
+ * DIR/MINC/PSIZE/MSIZE/CIRC/PRIORITY, NVIC) is done in HAL_DMA_Init (CubeMX).
+ * Per-frame restart mirrors HAL_DMA_Start_IT: disable EN, clear flags,
+ * set CNDTR/CPAR/CMAR, re-enable TC|HT|TE, then EN.  hdma State/ErrorCode
+ * stay in sync so HAL_DMA_Abort (FrameDone / abort path) still sees BUSY. */
+
+/** @brief  Start camera DMA with LL registers (mirrors HAL_DMA_Start_IT) */
+static inline void CamDma_Start(void)
+{
+  hdma_tim3_ch4_up.State = HAL_DMA_STATE_BUSY;
+  hdma_tim3_ch4_up.ErrorCode = HAL_DMA_ERROR_NONE;
+
+  DMA1_Channel3->CCR &= ~DMA_CCR_EN;
+  DMA1->IFCR = DMA_IFCR_CGIF3;
+  DMA1_Channel3->CNDTR = PIPELINE_BUFFER_SIZE;
+  DMA1_Channel3->CPAR = (uint32_t)OV7670_DATA_ADDR;
+  DMA1_Channel3->CMAR = (uint32_t)s_pipeline_buffer;
+  DMA1_Channel3->CCR |= DMA_CCR_TCIE | DMA_CCR_HTIE | DMA_CCR_TEIE;
+  DMA1_Channel3->CCR |= DMA_CCR_EN;
+}
+
 /* RCK = PB1: CNF1[1:0]+MODE1[1:0] occupy CRL bits [7:4].
  * LL equivalents of HAL_GPIO_Init for the AF<->GPIO toggle in ReadStart. */
 #define RCK_CRL_FIELD_MASK  (0x0Fu << 4u)
@@ -127,12 +152,7 @@ static void ReadStart(void)
 
   s_bytes_sent = 0u;
 
-  hdma_tim3_ch4_up.XferHalfCpltCallback = OnDmaHalfCplt;
-  hdma_tim3_ch4_up.XferCpltCallback = OnDmaCplt;
-  HAL_DMA_Start_IT(&hdma_tim3_ch4_up,
-                    (uint32_t)OV7670_DATA_ADDR,
-                    (uint32_t)s_pipeline_buffer,
-                    PIPELINE_BUFFER_SIZE);
+  CamDma_Start();
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
@@ -174,6 +194,12 @@ void Pipeline_Init(void)
 
   SET_BIT(hspi2.Instance->CR2, SPI_CR2_TXDMAEN | SPI_CR2_ERRIE);
   HAL_NVIC_DisableIRQ(DMA1_Channel5_IRQn);
+
+  /* Register camera DMA callbacks once.  HAL_DMA_IRQHandler invokes them on
+   * HT/TC; HAL_DMA_Abort never clears them, so one-time registration here is
+   * equivalent to the per-frame assignment previously paired with Start_IT. */
+  hdma_tim3_ch4_up.XferHalfCpltCallback = OnDmaHalfCplt;
+  hdma_tim3_ch4_up.XferCpltCallback = OnDmaCplt;
 }
 
 Pipeline_StateTypeDef Pipeline_GetState(void)
