@@ -108,7 +108,7 @@ static void DmaReadChunk(uint8_t *buf, uint16_t len)
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
-  while (!s_dma_done) {}
+  while (!s_dma_done);
 
   __HAL_TIM_DISABLE(&htim3);
 

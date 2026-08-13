@@ -35,13 +35,9 @@ static inline void SpiTxDma_Start(uint8_t *buf, uint16_t len)
 static inline void SpiTxDma_WaitDone(void)
 {
   /* Poll CNDTR, not CCR EN: EN is not reliably cleared with TXDMAEN set. */
-  while (PIPELINE_LCD_DMA_CHNL->CNDTR > 0u)
-  {
-  }
+  while (PIPELINE_LCD_DMA_CHNL->CNDTR > 0u);
   PIPELINE_LCD_DMA_CHNL->CCR &= ~DMA_CCR_EN;
-  while (PIPELINE_LCD_SPI->SR & SPI_SR_BSY)
-  {
-  }
+  while (PIPELINE_LCD_SPI->SR & SPI_SR_BSY);
 }
 
 static inline void SpiRestore1LineTx(void)

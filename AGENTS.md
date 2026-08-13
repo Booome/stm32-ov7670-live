@@ -98,6 +98,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 - Interrupt-shared variables must be `volatile`
 - Pointer `*` adjacent to variable name: `uint8_t *ptr`
 - Parameter validation: `assert_param()`
+- Empty loop bodies (busy-wait / spin) use `while (cond);`, not `while (cond) { }`
 
 ### LL Peripheral Access
 
